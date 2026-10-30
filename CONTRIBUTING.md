@@ -11,7 +11,7 @@ Format: `type(scope): description`
 
 Types: `feat`, `fix`, `chore`, `ci`, `docs`, `refactor`, `style`, `test`, `build`
 
-Scopes: the area you touched, such as `donor`, `receiver`, `volunteer`, `admin`, `auth`, `contracts`, `ui`, `db`, `workflow`
+Scopes: the area you touched, such as `donor`, `volunteer`, `admin`, `landing`, `auth`, `contracts`, `ui`, `db`, `workflow`
 
 Examples:
 - `feat(donor): add donation status timeline`
