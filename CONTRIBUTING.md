@@ -1,5 +1,8 @@
 # Contributing
 
+## Notes
+- run `nvm install 26` once
+
 ## Workflow
 1. Branch off `main`: `git switch -c type/short-name` (for example `feat/donor-dashboard`)
 2. Commit small and often.
