@@ -29,3 +29,8 @@ Use lowercase, present tense, and no trailing period. The PR title uses the same
 - shadcn/ui components live in `src/components/ui`. Add one with `npx shadcn@latest add <name>` in its own small PR, after pulling `main`, so two people don't add the same component and conflict in `package-lock.json`.
 - Use theme classes (`bg-primary`, `text-muted-foreground`, `border`) and never hard-coded colors like `bg-green-600`. Colors, radius and fonts are CSS variables in `src/app/globals.css`, so the UI/UX palette can be applied there later in one change.
 - Don't restyle files in `src/components/ui` for a single page. Use variants or wrap the component.
+
+## Environment variables
+- Copy `.env.example` to `.env.local`. Never commit real values.
+- Adding a variable means three changes in the same PR: `.env.example`, `src/lib/env.schema.ts`, and Vercel (Preview and Production).
+- Read variables through `getEnv()` from `src/lib/env.server.ts`, never `process.env` directly. Browser code may only use `NEXT_PUBLIC_` variables.
