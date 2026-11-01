@@ -86,10 +86,13 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 ## 7. Database status
 
-- The database author's schema (`foodlink_schema_v3.sql`) replaces an older Receiver-based design and matches the System PDF on almost everything
-- A short list of required fixes was sent back to the author: group labels as a lookup table instead of free text, at least one distribution entry before closing, block `TRUNCATE` on the append-only tables, row-level security on every table, a revocable QR token (`qr_version`), volunteer availability, drop the unused LOGIN one-time-code purpose, and rename the three pickup quick-check columns
+- The database author's schema replaces an older Receiver-based design and matches the System PDF. All fixes sent back to the author are in. The files live in `db/baseline/`: `001_schema.sql`, then `002_objects.sql`. Apply them in that order
+- Applies cleanly on PostgreSQL 16. Not tested on PostgreSQL 15, Supabase or Prisma
+- `donations.qr_token` (random 32 bytes, base64url) is required by a CHECK for POSTED and every later status, so the update to POSTED must write it. Never select it in list queries
+- Proof documents and photos are images only (JPEG, PNG or WebP, up to 5 MB)
+- `fn_donation_report` does not check who is calling. The API handler must confirm ownership or role first
 - Not decided yet: whether Prisma Migrate or the SQL files are the source of truth. Prisma cannot express triggers, views, CHECK constraints or partial unique indexes, so those need hand-written SQL in migrations
-- Every new table needs row-level security enabled in its migration
+- Every new table needs row-level security enabled in its migration. CI should fail if any table in `public` has it off
 - No Prisma schema exists yet
 
 ## 8. Gotchas
@@ -116,7 +119,6 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Email provider (Resend needs a verified domain; plain SMTP is the fallback) and AI vision provider
 - Badge thresholds for achievements
 - How to run the expiry job on the free Vercel plan
-- QR token wording: the PDF says random, the database derives it from the donation id (to be aligned)
 - Whether Prisma Migrate or the SQL files own the schema
 
 ## 11. Next up
