@@ -2,6 +2,7 @@
 
 ## Notes
 - run `nvm install 26` once
+- Project decisions, domain rules and known gotchas are in [docs/PROJECT_NOTES.md](docs/PROJECT_NOTES.md). Read it first.
 
 ## Workflow
 1. Branch off `main`: `git switch -c type/short-name` (for example `feat/donor-dashboard`)

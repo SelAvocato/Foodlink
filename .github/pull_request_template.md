@@ -12,3 +12,4 @@
 - [ ] `npm run lint`, `npm run typecheck`, and `npm run build` pass locally
 - [ ] No secrets or real user data committed
 - [ ] Only touched files in my own folders (or told the owner)
+- [ ] Updated `docs/PROJECT_NOTES.md` if I changed a decision, rule or gotcha (or nothing changed)
