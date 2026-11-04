@@ -1,0 +1,766 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model achievements {
+  id                Int                 @id @default(autoincrement()) @db.SmallInt
+  code              String              @unique @db.VarChar(80)
+  name              String              @db.VarChar(120)
+  description       String?
+  role              user_role
+  metric            achievement_metric
+  threshold         Int?
+  is_active         Boolean             @default(true)
+  user_achievements user_achievements[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model addresses {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  street_line1      String              @db.VarChar(200)
+  street_line2      String?             @db.VarChar(200)
+  barangay          String?             @db.VarChar(120)
+  city              String              @db.VarChar(120)
+  province_or_state String?             @db.VarChar(120)
+  postal_code       String?             @db.VarChar(20)
+  country_code      String              @default("PH") @db.Char(2)
+  latitude          Decimal?            @db.Decimal(9, 6)
+  longitude         Decimal?            @db.Decimal(9, 6)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  donations         donations[]
+  host_organization host_organization[]
+  users             users[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model allergens {
+  id                 Int                  @id @default(autoincrement()) @db.SmallInt
+  code               String               @unique @db.VarChar(40)
+  name               String               @db.VarChar(80)
+  is_active          Boolean              @default(true)
+  donation_allergens donation_allergens[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model audit_logs {
+  id            BigInt   @id @default(autoincrement())
+  actor_user_id String?  @db.Uuid
+  action        String   @db.VarChar(100)
+  target_type   String   @db.VarChar(80)
+  target_id     String?
+  ip_address    String?  @db.Inet
+  user_agent    String?
+  details       Json     @default("{}")
+  occurred_at   DateTime @default(now()) @db.Timestamptz(6)
+  users         users?   @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([actor_user_id, occurred_at(sort: Desc)], map: "audit_logs_actor_idx", where: raw("(actor_user_id IS NOT NULL)"))
+  @@index([target_type, target_id, occurred_at(sort: Desc)], map: "audit_logs_target_idx")
+  @@index([occurred_at(sort: Desc)], map: "audit_logs_timeline_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model beneficiary_groups {
+  id                   Int                    @id @default(autoincrement()) @db.SmallInt
+  code                 String                 @unique @db.VarChar(40)
+  name                 String                 @unique @db.VarChar(80)
+  is_active            Boolean                @default(true)
+  distribution_entries distribution_entries[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model dietary_tags {
+  id                    Int                     @id @default(autoincrement()) @db.SmallInt
+  code                  String                  @unique @db.VarChar(40)
+  name                  String                  @db.VarChar(80)
+  is_active             Boolean                 @default(true)
+  donation_dietary_tags donation_dietary_tags[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model distribution_entries {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id               String                      @db.Uuid
+  distributed_on            DateTime                    @db.Date
+  place                     String                      @db.VarChar(200)
+  group_id                  Int                         @db.SmallInt
+  people_served             Int
+  portions_distributed      Int
+  notes                     String?
+  recorded_by_user_id       String                      @db.Uuid
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  donations                 donations                   @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  beneficiary_groups        beneficiary_groups          @relation(fields: [group_id], references: [id], onUpdate: NoAction)
+  users                     users                       @relation(fields: [recorded_by_user_id], references: [id], onUpdate: NoAction)
+  distribution_entry_photos distribution_entry_photos[]
+
+  @@index([donation_id, distributed_on], map: "distribution_entries_donation_idx")
+  @@index([group_id], map: "distribution_entries_group_idx")
+  @@index([recorded_by_user_id], map: "distribution_entries_recorded_by_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model distribution_entry_photos {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entry_id             String               @db.Uuid
+  uploaded_by_user_id  String               @db.Uuid
+  storage_key          String               @unique
+  mime_type            String               @db.VarChar(100)
+  size_bytes           BigInt
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  distribution_entries distribution_entries @relation(fields: [entry_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                users                @relation(fields: [uploaded_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([entry_id], map: "distribution_entry_photos_entry_idx")
+  @@index([uploaded_by_user_id], map: "distribution_entry_photos_uploaded_by_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model document_types {
+  id             Int              @id @default(autoincrement()) @db.SmallInt
+  code           String           @unique @db.VarChar(40)
+  name           String           @db.VarChar(120)
+  is_active      Boolean          @default(true)
+  user_documents user_documents[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_allergens {
+  donation_id String    @db.Uuid
+  allergen_id Int       @db.SmallInt
+  allergens   allergens @relation(fields: [allergen_id], references: [id], onUpdate: NoAction)
+  donations   donations @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([donation_id, allergen_id])
+  @@index([allergen_id], map: "donation_allergens_allergen_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_assignments {
+  id                                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id                                      String    @unique(map: "donation_assignments_one_current_uq", where: raw("(ended_at IS NULL)")) @db.Uuid
+  volunteer_id                                     String    @db.Uuid
+  assigned_by_id                                   String    @db.Uuid
+  assigned_at                                      DateTime  @default(now()) @db.Timestamptz(6)
+  ended_at                                         DateTime? @db.Timestamptz(6)
+  end_reason                                       String?
+  users_donation_assignments_assigned_by_idTousers users     @relation("donation_assignments_assigned_by_idTousers", fields: [assigned_by_id], references: [id], onUpdate: NoAction)
+  donations                                        donations @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  users_donation_assignments_volunteer_idTousers   users     @relation("donation_assignments_volunteer_idTousers", fields: [volunteer_id], references: [id], onUpdate: NoAction)
+
+  @@index([assigned_by_id], map: "donation_assignments_assigned_by_idx")
+  @@index([donation_id, assigned_at(sort: Desc)], map: "donation_assignments_donation_idx")
+  @@index([volunteer_id], map: "donation_assignments_volunteer_idx", where: raw("(ended_at IS NULL)"))
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_dietary_tags {
+  donation_id    String       @db.Uuid
+  dietary_tag_id Int          @db.SmallInt
+  dietary_tags   dietary_tags @relation(fields: [dietary_tag_id], references: [id], onUpdate: NoAction)
+  donations      donations    @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([donation_id, dietary_tag_id])
+  @@index([dietary_tag_id], map: "donation_dietary_tags_tag_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_exits {
+  donation_id     String           @id @db.Uuid
+  exit_status     donation_status
+  actor_user_id   String?          @db.Uuid
+  actor_role      user_role?
+  screening_id    String?          @db.Uuid
+  reason          String?
+  occurred_at     DateTime         @default(now()) @db.Timestamptz(6)
+  users           users?           @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  donations       donations        @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  food_screenings food_screenings? @relation(fields: [screening_id], references: [id], onUpdate: NoAction)
+
+  @@index([actor_user_id], map: "donation_exits_actor_idx", where: raw("(actor_user_id IS NOT NULL)"))
+  @@index([screening_id], map: "donation_exits_screening_idx", where: raw("(screening_id IS NOT NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_images {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id                 String                        @unique(map: "donation_images_one_food_photo_uq", where: raw("((image_role = 'FOOD_PHOTO'::image_role) AND (deleted_at IS NULL))")) @db.Uuid
+  uploaded_by_user_id         String                        @db.Uuid
+  storage_key                 String                        @unique
+  image_role                  image_role                    @default(FOOD_PHOTO)
+  mime_type                   String                        @db.VarChar(100)
+  size_bytes                  BigInt
+  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  deleted_at                  DateTime?                     @db.Timestamptz(6)
+  donations                   donations                     @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                       users                         @relation(fields: [uploaded_by_user_id], references: [id], onUpdate: NoAction)
+  donation_pickup_inspections donation_pickup_inspections[]
+  food_screenings             food_screenings[]
+
+  @@index([donation_id, created_at], map: "donation_images_donation_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([uploaded_by_user_id], map: "donation_images_uploaded_by_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_message_reads {
+  message_id        String            @db.Uuid
+  user_id           String            @db.Uuid
+  read_at           DateTime          @default(now()) @db.Timestamptz(6)
+  donation_messages donation_messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users             users             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([message_id, user_id])
+  @@index([user_id], map: "message_reads_user_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_messages {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id            String                   @db.Uuid
+  sender_user_id         String                   @db.Uuid
+  body                   String
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at             DateTime?                @db.Timestamptz(6)
+  donation_message_reads donation_message_reads[]
+  donations              donations                @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  users                  users                    @relation(fields: [sender_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([sender_user_id, created_at(sort: Desc)], map: "messages_sender_idx")
+  @@index([donation_id, created_at], map: "messages_thread_idx", where: raw("(deleted_at IS NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_pickup_inspections {
+  donation_id            String           @id @db.Uuid
+  volunteer_id           String           @db.Uuid
+  photo_image_id         String?          @db.Uuid
+  screening_id           String?          @db.Uuid
+  matches_description    Boolean
+  packaging_sealed_clean Boolean
+  looks_smells_normal    Boolean
+  decision               pickup_decision
+  reason                 String?
+  inspected_at           DateTime         @default(now()) @db.Timestamptz(6)
+  donations              donations        @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  donation_images        donation_images? @relation(fields: [photo_image_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  food_screenings        food_screenings? @relation(fields: [screening_id], references: [id], onUpdate: NoAction)
+  users                  users            @relation(fields: [volunteer_id], references: [id], onUpdate: NoAction)
+
+  @@index([photo_image_id], map: "pickup_inspections_photo_idx", where: raw("(photo_image_id IS NOT NULL)"))
+  @@index([screening_id], map: "pickup_inspections_screening_idx", where: raw("(screening_id IS NOT NULL)"))
+  @@index([volunteer_id], map: "pickup_inspections_volunteer_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_qr_scans {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id        String        @db.Uuid
+  stage              qr_scan_stage
+  scanned_by_user_id String        @db.Uuid
+  scanned_at         DateTime      @default(now()) @db.Timestamptz(6)
+  donations          donations     @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  users              users         @relation(fields: [scanned_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@unique([donation_id, stage])
+  @@index([scanned_by_user_id], map: "donation_qr_scans_scanned_by_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_safety_checklists {
+  donation_id                  String             @id @db.Uuid
+  prepared_at                  DateTime?          @db.Timestamptz(6)
+  consume_by_at                DateTime?          @db.Timestamptz(6)
+  storage_condition            storage_condition?
+  storage_temperature_c        Decimal?           @db.Decimal(5, 2)
+  packaging_intact             Boolean?
+  allergens_confirmed          Boolean?
+  not_customer_plate_leftovers Boolean?
+  completed_at                 DateTime?          @db.Timestamptz(6)
+  created_at                   DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime           @default(now()) @db.Timestamptz(6)
+  donations                    donations          @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donation_tracking_events {
+  id            BigInt           @id @default(autoincrement())
+  donation_id   String           @db.Uuid
+  event_type    String           @default("TRANSITION") @db.VarChar(20)
+  from_status   donation_status?
+  to_status     donation_status
+  actor_user_id String?          @db.Uuid
+  event_note    String?
+  metadata      Json             @default("{}")
+  occurred_at   DateTime         @default(now()) @db.Timestamptz(6)
+  users         users?           @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  donations     donations        @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+
+  @@index([actor_user_id, occurred_at(sort: Desc)], map: "tracking_actor_idx", where: raw("(actor_user_id IS NOT NULL)"))
+  @@index([donation_id, occurred_at], map: "tracking_donation_timeline_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model donations {
+  id                                    String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donor_id                              String                       @db.Uuid
+  food_category_id                      Int                          @db.SmallInt
+  food_name                             String                       @db.VarChar(160)
+  description                           String?
+  portions                              Int
+  status                                donation_status              @default(DRAFT)
+  pickup_address_id                     String?                      @db.Uuid
+  pickup_start                          DateTime?                    @db.Timestamptz(6)
+  pickup_end                            DateTime?                    @db.Timestamptz(6)
+  posted_at                             DateTime?                    @db.Timestamptz(6)
+  accepted_by_id                        String?                      @db.Uuid
+  accepted_at                           DateTime?                    @db.Timestamptz(6)
+  closed_at                             DateTime?                    @db.Timestamptz(6)
+  qr_token                              String?                      @unique
+  qr_rotated_at                         DateTime?                    @db.Timestamptz(6)
+  created_at                            DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime                     @default(now()) @db.Timestamptz(6)
+  deleted_at                            DateTime?                    @db.Timestamptz(6)
+  distribution_entries                  distribution_entries[]
+  donation_allergens                    donation_allergens[]
+  donation_assignments                  donation_assignments?
+  donation_dietary_tags                 donation_dietary_tags[]
+  donation_exits                        donation_exits?
+  donation_images                       donation_images?
+  donation_messages                     donation_messages[]
+  donation_pickup_inspections           donation_pickup_inspections?
+  donation_qr_scans                     donation_qr_scans[]
+  donation_safety_checklists            donation_safety_checklists?
+  donation_tracking_events              donation_tracking_events[]
+  users_donations_accepted_by_idTousers users?                       @relation("donations_accepted_by_idTousers", fields: [accepted_by_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_donations_donor_idTousers       users                        @relation("donations_donor_idTousers", fields: [donor_id], references: [id], onUpdate: NoAction)
+  food_categories                       food_categories              @relation(fields: [food_category_id], references: [id], onUpdate: NoAction)
+  addresses                             addresses?                   @relation(fields: [pickup_address_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  food_screenings                       food_screenings[]
+  incidents                             incidents[]
+  notifications                         notifications[]
+  unusable_portions                     unusable_portions[]
+
+  @@index([accepted_by_id], map: "donations_accepted_by_idx", where: raw("(accepted_by_id IS NOT NULL)"))
+  @@index([pickup_end], map: "donations_admin_queue_idx", where: raw("((status = 'POSTED'::donation_status) AND (deleted_at IS NULL))"))
+  @@index([food_category_id, status], map: "donations_category_status_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([donor_id, status, created_at(sort: Desc)], map: "donations_donor_status_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([pickup_end], map: "donations_expiry_idx", where: raw("(status = ANY (ARRAY['POSTED'::donation_status, 'ACCEPTED'::donation_status, 'ASSIGNED'::donation_status]))"))
+  @@index([pickup_address_id], map: "donations_pickup_address_idx", where: raw("(pickup_address_id IS NOT NULL)"))
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model food_categories {
+  id                      Int         @id @default(autoincrement()) @db.SmallInt
+  code                    String      @unique @db.VarChar(40)
+  name                    String      @unique @db.VarChar(80)
+  allowed_for_individuals Boolean     @default(false)
+  requires_prepared_time  Boolean     @default(false)
+  requires_storage_info   Boolean     @default(false)
+  is_active               Boolean     @default(true)
+  donations               donations[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model food_screenings {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id                 String                        @db.Uuid
+  image_id                    String?                       @db.Uuid
+  provider                    String                        @db.VarChar(80)
+  model_version               String?                       @db.VarChar(120)
+  verdict                     screening_verdict
+  confidence                  Decimal?                      @db.Decimal(5, 4)
+  signs                       Json                          @default("[]")
+  notes                       String?
+  reviewed_by_user_id         String?                       @db.Uuid
+  reviewed_at                 DateTime?                     @db.Timestamptz(6)
+  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  donation_exits              donation_exits[]
+  donation_pickup_inspections donation_pickup_inspections[]
+  donations                   donations                     @relation(fields: [donation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  donation_images             donation_images?              @relation(fields: [image_id], references: [id], onUpdate: NoAction)
+  users                       users?                        @relation(fields: [reviewed_by_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([donation_id, created_at(sort: Desc)], map: "food_screenings_donation_idx")
+  @@index([image_id], map: "food_screenings_image_idx", where: raw("(image_id IS NOT NULL)"))
+  @@index([created_at], map: "food_screenings_review_queue_idx", where: raw("((verdict = 'REVIEW'::screening_verdict) AND (reviewed_at IS NULL))"))
+  @@index([reviewed_by_user_id], map: "food_screenings_reviewed_by_idx", where: raw("(reviewed_by_user_id IS NOT NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model host_organization {
+  id                 Int        @id @default(1) @db.SmallInt
+  name               String     @db.VarChar(180)
+  mission            String?
+  vision             String?
+  goals              Json       @default("[]")
+  organization_chart Json       @default("[]")
+  contact_email      String?    @db.VarChar(254)
+  contact_phone      String?    @db.VarChar(20)
+  address_id         String?    @db.Uuid
+  created_at         DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime   @default(now()) @db.Timestamptz(6)
+  addresses          addresses? @relation(fields: [address_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([address_id], map: "host_organization_address_idx", where: raw("(address_id IS NOT NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model incident_attachments {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  incident_id         String    @db.Uuid
+  uploaded_by_user_id String    @db.Uuid
+  storage_key         String    @unique
+  original_filename   String    @db.VarChar(255)
+  mime_type           String    @db.VarChar(100)
+  size_bytes          BigInt
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at          DateTime? @db.Timestamptz(6)
+  incidents           incidents @relation(fields: [incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users               users     @relation(fields: [uploaded_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([incident_id], map: "incident_attachments_incident_idx", where: raw("(deleted_at IS NULL)"))
+  @@index([uploaded_by_user_id], map: "incident_attachments_uploaded_by_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model incidents {
+  id                                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id                                String                 @db.Uuid
+  reported_by_user_id                        String                 @db.Uuid
+  title                                      String                 @db.VarChar(180)
+  description                                String
+  status                                     incident_status        @default(OPEN)
+  resolution_note                            String?
+  resolved_by_user_id                        String?                @db.Uuid
+  resolved_at                                DateTime?              @db.Timestamptz(6)
+  suspended_user_id                          String?                @db.Uuid
+  created_at                                 DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                                 DateTime               @default(now()) @db.Timestamptz(6)
+  incident_attachments                       incident_attachments[]
+  donations                                  donations              @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  users_incidents_reported_by_user_idTousers users                  @relation("incidents_reported_by_user_idTousers", fields: [reported_by_user_id], references: [id], onUpdate: NoAction)
+  users_incidents_resolved_by_user_idTousers users?                 @relation("incidents_resolved_by_user_idTousers", fields: [resolved_by_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_incidents_suspended_user_idTousers   users?                 @relation("incidents_suspended_user_idTousers", fields: [suspended_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  notifications                              notifications[]
+
+  @@index([donation_id, created_at(sort: Desc)], map: "incidents_donation_idx")
+  @@index([status, created_at(sort: Desc)], map: "incidents_queue_idx")
+  @@index([reported_by_user_id, created_at(sort: Desc)], map: "incidents_reported_by_idx")
+  @@index([resolved_by_user_id], map: "incidents_resolved_by_idx", where: raw("(resolved_by_user_id IS NOT NULL)"))
+  @@index([suspended_user_id], map: "incidents_suspended_user_idx", where: raw("(suspended_user_id IS NOT NULL)"))
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notifications {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String     @db.Uuid
+  notification_type   String     @db.VarChar(60)
+  title               String     @db.VarChar(180)
+  body                String
+  related_donation_id String?    @db.Uuid
+  related_incident_id String?    @db.Uuid
+  read_at             DateTime?  @db.Timestamptz(6)
+  created_at          DateTime   @default(now()) @db.Timestamptz(6)
+  donations           donations? @relation(fields: [related_donation_id], references: [id], onUpdate: NoAction)
+  incidents           incidents? @relation(fields: [related_incident_id], references: [id], onUpdate: NoAction)
+  users               users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([read_at], map: "notifications_read_cleanup_idx", where: raw("(read_at IS NOT NULL)"))
+  @@index([related_donation_id], map: "notifications_related_donation_idx", where: raw("(related_donation_id IS NOT NULL)"))
+  @@index([related_incident_id], map: "notifications_related_incident_idx", where: raw("(related_incident_id IS NOT NULL)"))
+  @@index([user_id, created_at(sort: Desc)], map: "notifications_unread_idx", where: raw("(read_at IS NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model one_time_codes {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String?     @db.Uuid
+  email         String      @db.VarChar(254)
+  purpose       otp_purpose
+  code_hash     String
+  expires_at    DateTime    @db.Timestamptz(6)
+  consumed_at   DateTime?   @db.Timestamptz(6)
+  attempt_count Int         @default(0) @db.SmallInt
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  users         users?      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "one_time_codes_expires_idx")
+  @@index([email, purpose, created_at(sort: Desc)], map: "otp_rate_limit_idx")
+  @@index([user_id, created_at(sort: Desc)], map: "otp_user_idx", where: raw("(user_id IS NOT NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model unusable_portions {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id         String          @db.Uuid
+  portions            Int
+  reason              unusable_reason
+  note                String?
+  recorded_by_user_id String          @db.Uuid
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  donations           donations       @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  users               users           @relation(fields: [recorded_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([donation_id], map: "unusable_portions_donation_idx")
+  @@index([recorded_by_user_id], map: "unusable_portions_recorded_by_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_achievements {
+  user_id        String       @db.Uuid
+  achievement_id Int          @db.SmallInt
+  awarded_at     DateTime     @default(now()) @db.Timestamptz(6)
+  metadata       Json         @default("{}")
+  achievements   achievements @relation(fields: [achievement_id], references: [id], onUpdate: NoAction)
+  users          users        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, achievement_id])
+  @@index([achievement_id], map: "user_achievements_achievement_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_consents {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  consent_type   String    @db.VarChar(40)
+  policy_version String    @db.VarChar(30)
+  granted_at     DateTime  @default(now()) @db.Timestamptz(6)
+  revoked_at     DateTime? @db.Timestamptz(6)
+  ip_address     String?   @db.Inet
+  users          users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, consent_type, policy_version])
+  @@index([user_id], map: "user_consents_user_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_credentials {
+  user_id             String    @id @db.Uuid
+  password_hash       String
+  password_changed_at DateTime  @default(now()) @db.Timestamptz(6)
+  last_login_at       DateTime? @db.Timestamptz(6)
+  failed_login_count  Int       @default(0) @db.SmallInt
+  locked_until        DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_documents {
+  id                                              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                         String          @db.Uuid
+  document_type_id                                Int             @db.SmallInt
+  storage_key                                     String          @unique
+  original_filename                               String          @db.VarChar(255)
+  mime_type                                       String          @db.VarChar(100)
+  size_bytes                                      BigInt
+  status                                          document_status @default(PENDING)
+  reviewed_by_user_id                             String?         @db.Uuid
+  reviewed_at                                     DateTime?       @db.Timestamptz(6)
+  review_note                                     String?
+  created_at                                      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                                      DateTime        @default(now()) @db.Timestamptz(6)
+  deleted_at                                      DateTime?       @db.Timestamptz(6)
+  document_types                                  document_types  @relation(fields: [document_type_id], references: [id], onUpdate: NoAction)
+  users_user_documents_reviewed_by_user_idTousers users?          @relation("user_documents_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_user_documents_user_idTousers             users           @relation("user_documents_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at], map: "user_documents_review_queue_idx", where: raw("((status = 'PENDING'::document_status) AND (deleted_at IS NULL))"))
+  @@index([reviewed_by_user_id], map: "user_documents_reviewed_by_idx", where: raw("(reviewed_by_user_id IS NOT NULL)"))
+  @@index([document_type_id], map: "user_documents_type_idx")
+  @@index([user_id, status], map: "user_documents_user_idx", where: raw("(deleted_at IS NULL)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model user_reviews {
+  id                                            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                       String         @db.Uuid
+  reviewed_by_user_id                           String         @db.Uuid
+  resulting_status                              account_status
+  reason                                        String?
+  reviewed_at                                   DateTime       @default(now()) @db.Timestamptz(6)
+  users_user_reviews_reviewed_by_user_idTousers users          @relation("user_reviews_reviewed_by_user_idTousers", fields: [reviewed_by_user_id], references: [id], onUpdate: NoAction)
+  users_user_reviews_user_idTousers             users          @relation("user_reviews_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([reviewed_by_user_id], map: "user_reviews_reviewer_idx")
+  @@index([user_id, reviewed_at(sort: Desc)], map: "user_reviews_user_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model users {
+  id                                                              String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role                                                            user_role
+  status                                                          account_status                @default(PENDING)
+  full_name                                                       String                        @db.VarChar(160)
+  email                                                           String                        @unique(map: "users_email_active_uq", where: raw("(deleted_at IS NULL)")) @db.VarChar(254)
+  contact_number                                                  String                        @db.VarChar(20)
+  donor_type                                                      donor_type?
+  business_name                                                   String?                       @db.VarChar(180)
+  address_id                                                      String?                       @db.Uuid
+  availability                                                    String?
+  created_at                                                      DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                                                      DateTime                      @default(now()) @db.Timestamptz(6)
+  deleted_at                                                      DateTime?                     @db.Timestamptz(6)
+  audit_logs                                                      audit_logs[]
+  distribution_entries                                            distribution_entries[]
+  distribution_entry_photos                                       distribution_entry_photos[]
+  donation_assignments_donation_assignments_assigned_by_idTousers donation_assignments[]        @relation("donation_assignments_assigned_by_idTousers")
+  donation_assignments_donation_assignments_volunteer_idTousers   donation_assignments[]        @relation("donation_assignments_volunteer_idTousers")
+  donation_exits                                                  donation_exits[]
+  donation_images                                                 donation_images[]
+  donation_message_reads                                          donation_message_reads[]
+  donation_messages                                               donation_messages[]
+  donation_pickup_inspections                                     donation_pickup_inspections[]
+  donation_qr_scans                                               donation_qr_scans[]
+  donation_tracking_events                                        donation_tracking_events[]
+  donations_donations_accepted_by_idTousers                       donations[]                   @relation("donations_accepted_by_idTousers")
+  donations_donations_donor_idTousers                             donations[]                   @relation("donations_donor_idTousers")
+  food_screenings                                                 food_screenings[]
+  incident_attachments                                            incident_attachments[]
+  incidents_incidents_reported_by_user_idTousers                  incidents[]                   @relation("incidents_reported_by_user_idTousers")
+  incidents_incidents_resolved_by_user_idTousers                  incidents[]                   @relation("incidents_resolved_by_user_idTousers")
+  incidents_incidents_suspended_user_idTousers                    incidents[]                   @relation("incidents_suspended_user_idTousers")
+  notifications                                                   notifications[]
+  one_time_codes                                                  one_time_codes[]
+  unusable_portions                                               unusable_portions[]
+  user_achievements                                               user_achievements[]
+  user_consents                                                   user_consents[]
+  user_credentials                                                user_credentials?
+  user_documents_user_documents_reviewed_by_user_idTousers        user_documents[]              @relation("user_documents_reviewed_by_user_idTousers")
+  user_documents_user_documents_user_idTousers                    user_documents[]              @relation("user_documents_user_idTousers")
+  user_reviews_user_reviews_reviewed_by_user_idTousers            user_reviews[]                @relation("user_reviews_reviewed_by_user_idTousers")
+  user_reviews_user_reviews_user_idTousers                        user_reviews[]                @relation("user_reviews_user_idTousers")
+  addresses                                                       addresses?                    @relation(fields: [address_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([address_id], map: "users_address_idx", where: raw("(address_id IS NOT NULL)"))
+  @@index([created_at], map: "users_pending_queue_idx", where: raw("((status = 'PENDING'::account_status) AND (deleted_at IS NULL))"))
+  @@index([role, status], where: raw("(deleted_at IS NULL)"))
+}
+
+enum account_status {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum achievement_metric {
+  DONATIONS_COMPLETED
+  PORTIONS_DONATED
+  PEOPLE_SERVED
+  TASKS_COMPLETED
+}
+
+enum document_status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum donation_status {
+  DRAFT
+  SCREENED
+  POSTED
+  ACCEPTED
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  CLOSED
+  REJECTED
+  DECLINED
+  REJECTED_AT_PICKUP
+  CANCELLED
+  EXPIRED
+}
+
+enum donor_type {
+  ESTABLISHMENT
+  INDIVIDUAL
+}
+
+enum image_role {
+  FOOD_PHOTO
+  PICKUP_PHOTO
+  HANDOVER_PROOF
+}
+
+enum incident_status {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum otp_purpose {
+  PASSWORD_RESET
+}
+
+enum pickup_decision {
+  ACCEPTED
+  REJECTED
+}
+
+enum qr_scan_stage {
+  PICKUP
+  DROPOFF
+}
+
+enum screening_verdict {
+  PASS
+  FLAG
+  REVIEW
+}
+
+enum storage_condition {
+  ROOM_TEMPERATURE
+  HOT_HELD
+  REFRIGERATED
+  FROZEN
+}
+
+enum unusable_reason {
+  SPOILED_ON_ARRIVAL
+  DAMAGED
+  OTHER
+}
+
+enum user_role {
+  DONOR
+  VOLUNTEER
+  ADMIN
+}
