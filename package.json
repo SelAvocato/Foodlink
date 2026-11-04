@@ -5,11 +5,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prebuild": "npm run db:generate",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:check": "prisma db execute --file db/ci-check.sql"
   },
   "dependencies": {
     "@prisma/client": "^7.10.1",

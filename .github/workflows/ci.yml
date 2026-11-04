@@ -17,6 +17,8 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DIRECT_URL: postgresql://postgres:dev@localhost:5433/foodlink
     steps:
       - uses: actions/checkout@v7
 
@@ -26,7 +28,39 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run db:generate
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: foodlink
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d foodlink"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DIRECT_URL: postgresql://postgres:dev@localhost:5433/foodlink
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run db:check
