@@ -91,9 +91,9 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - `donations.qr_token` (random 32 bytes, base64url) is required by a CHECK for POSTED and every later status, so the update to POSTED must write it. Never select it in list queries
 - Proof documents and photos are images only (JPEG, PNG or WebP, up to 5 MB)
 - `fn_donation_report` does not check who is calling. The API handler must confirm ownership or role first
-- Not decided yet: whether Prisma Migrate or the SQL files are the source of truth. Prisma cannot express triggers, views, CHECK constraints or partial unique indexes, so those need hand-written SQL in migrations
+- The SQL files are the schema source of truth and are concatenated into `prisma/migrations/0_init/migration.sql`. Use `npm run db:migrate` only; do not use `prisma migrate dev` because Prisma cannot express triggers, views, CHECK constraints or partial unique indexes
 - Every new table needs row-level security enabled in its migration. CI should fail if any table in `public` has it off
-- No Prisma schema exists yet
+- `prisma generate` writes the client to `src/generated/prisma`, which is ignored by Git and generated before Vercel builds
 
 ## 8. Gotchas
 
@@ -111,6 +111,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Oct 30 | Team now works by feature (full stack per feature). Prettier check not needed. CODEOWNERS skipped |
 | Oct 31 | `pr-title` made a required check. Dependabot and secret scanning turned on. Minimum token permissions in CI. Vitest and env validation added |
 | Nov 1 | Moved to Node 26 LTS. Dependabot ignores TypeScript 7 and ESLint major bumps |
+| Nov 4 | SQL baseline became the initial Prisma migration; deploy-only workflow and PostgreSQL CI checks are required |
 
 ## 10. Open questions
 
@@ -125,5 +126,5 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 1. Finish the Vercel checks once teammates accept the repo invite (test a PR from a teammate)
 2. `src/contracts/auth.ts`: Zod schemas for login, donor and volunteer registration, forgot password and OTP, with tests
-3. Prisma schema once the database author's fixes are in, then a Prisma CI job (validate, generate, migrate against a Postgres service container, enum alignment check)
+3. Build the application features on top of the Prisma client and keep the SQL baseline and initial migration aligned
 4. Auth pages with shadcn/ui and mock data, then wait for the UI/UX designs on the landing page and dashboards
