@@ -3,7 +3,7 @@
 Living notes for teammates and AI tools. Read this before making changes.
 Keep it short. When a PR changes a decision, a rule or a gotcha below, update this file in the same PR.
 
-Last updated: 2026-11-01
+Last updated: 2026-11-05
 
 ## 1. What FoodLink is
 
@@ -72,7 +72,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Zod validation on every request, unknown fields rejected, free text stored as plain text
 - Uploads: JPEG, PNG or WebP up to 5 MB, random names, private bucket, signed URLs
 - QR token: 32 bytes, never expose raw ids, scans validated (assigned volunteer, correct stage, not expired) and idempotent
-- OTP: 6 digits, 5-minute expiry, at most 3 per 15 minutes. Passwords need uppercase, lowercase, number, special character and 8+ characters
+- OTP: 6 digits, 5-minute expiry, at most 3 per 15 minutes. Passwords need uppercase, lowercase, number, special character and 8 to 128 characters at registration and password reset. Login only checks that a password was sent (1 to 128 characters), so a seeded Admin or a later policy change never fails validation
 
 **Routes:** `/`, `/login`, `/register/donor`, `/register/volunteer`, `/forgot`, `/admin/login`, `/donor/*`, `/volunteer/*`, `/admin/*`.
 
@@ -112,6 +112,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Oct 31 | `pr-title` made a required check. Dependabot and secret scanning turned on. Minimum token permissions in CI. Vitest and env validation added |
 | Nov 1 | Moved to Node 26 LTS. Dependabot ignores TypeScript 7 and ESLint major bumps |
 | Nov 4 | SQL baseline became the initial Prisma migration; deploy-only workflow and PostgreSQL CI checks are required |
+| Nov 5 | Login schema checks only a non-empty password (max 128); the complexity rules apply at registration and reset |
 
 ## 10. Open questions
 
@@ -125,6 +126,6 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 ## 11. Next up
 
 1. Finish the Vercel checks once teammates accept the repo invite (test a PR from a teammate)
-2. `src/contracts/auth.ts`: Zod schemas for login, donor and volunteer registration, forgot password and OTP, with tests
+2. `src/contracts/auth.ts` has email, password, phone and login schemas. Next: donor and volunteer registration schemas
 3. Build the application features on top of the Prisma client and keep the SQL baseline and initial migration aligned
 4. Auth pages with shadcn/ui and mock data, then wait for the UI/UX designs on the landing page and dashboards
