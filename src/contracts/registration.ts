@@ -68,3 +68,18 @@ export const donorRegistrationSchema = z.discriminatedUnion("donorType", [
   z.strictObject({ donorType: z.literal(DonorType.INDIVIDUAL), ...donorBase }),
 ]);
 export type DonorRegistrationInput = z.infer<typeof donorRegistrationSchema>;
+
+/**
+ * Volunteers send an address (the map pin is optional) and an optional availability note.
+ * The valid ID is uploaded separately. The role, status and consent time are set by the server.
+ */
+export const volunteerRegistrationSchema = z.strictObject({
+  fullName,
+  contactNumber,
+  email,
+  address: addressSchema,
+  availability: optionalText(500),
+  password,
+  consent,
+});
+export type VolunteerRegistrationInput = z.input<typeof volunteerRegistrationSchema>;
