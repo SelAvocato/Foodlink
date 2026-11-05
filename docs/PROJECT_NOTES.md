@@ -113,6 +113,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 1 | Moved to Node 26 LTS. Dependabot ignores TypeScript 7 and ESLint major bumps |
 | Nov 4 | SQL baseline became the initial Prisma migration; deploy-only workflow and PostgreSQL CI checks are required |
 | Nov 5 | Login schema checks only a non-empty password (max 128); the complexity rules apply at registration and reset |
+| Nov 5 | Registration contracts: Donor must send a map pin, Volunteer's pin is optional (the PDF asks Volunteers only for an address). Consent is stored in `user_consents`, with the type and policy version as constants in `src/contracts/registration.ts` |
 
 ## 10. Open questions
 
@@ -126,6 +127,6 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 ## 11. Next up
 
 1. Finish the Vercel checks once teammates accept the repo invite (test a PR from a teammate)
-2. `src/contracts/auth.ts` has email, password, phone and login schemas. Next: donor and volunteer registration schemas
+2. Auth and registration schemas are in `src/contracts/auth.ts` and `src/contracts/registration.ts`. Next: the seed script (once the Prisma setup is fixed), then the registration APIs
 3. Build the application features on top of the Prisma client and keep the SQL baseline and initial migration aligned
 4. Auth pages with shadcn/ui and mock data, then wait for the UI/UX designs on the landing page and dashboards
