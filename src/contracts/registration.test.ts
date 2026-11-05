@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addressSchema, donorRegistrationSchema } from "./registration";
+import { addressSchema, donorRegistrationSchema, volunteerRegistrationSchema } from "./registration";
 
 const address = {
   streetLine1: "123 Katipunan Ave",
@@ -93,5 +93,41 @@ describe("addressSchema", () => {
   it("rejects unknown fields and a bad country code", () => {
     expect(addressSchema.safeParse({ ...noPin, id: "x" }).success).toBe(false);
     expect(addressSchema.safeParse({ ...noPin, countryCode: "PHL" }).success).toBe(false);
+  });
+});
+
+describe("volunteerRegistrationSchema", () => {
+  const volunteer = { ...base, address: withoutPin, availability: "Weekends, mornings" };
+  it("accepts a volunteer with or without a map pin", () => {
+    expect(volunteerRegistrationSchema.safeParse(volunteer).success).toBe(true);
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, address }).success).toBe(true);
+  });
+  it("normalizes email and phone and treats empty availability as missing", () => {
+    const result = volunteerRegistrationSchema.parse({ ...volunteer, availability: "  " });
+    expect(result.email).toBe("juan@example.ph");
+    expect(result.contactNumber).toBe("09171234567");
+    expect(result.availability).toBeUndefined();
+  });
+  it("accepts a volunteer with no availability field", () => {
+    const body: Record<string, unknown> = { ...volunteer };
+    delete body.availability;
+    expect(volunteerRegistrationSchema.safeParse(body).success).toBe(true);
+  });
+  it("requires the address", () => {
+    const body: Record<string, unknown> = { ...volunteer };
+    delete body.address;
+    expect(volunteerRegistrationSchema.safeParse(body).success).toBe(false);
+  });
+  it("requires the privacy consent to be true", () => {
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, consent: false }).success).toBe(false);
+  });
+  it("rejects donor fields and other unknown fields", () => {
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, donorType: "INDIVIDUAL" }).success).toBe(false);
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, businessName: "Bakery" }).success).toBe(false);
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, role: "ADMIN" }).success).toBe(false);
+  });
+  it("rejects a weak password and an availability note over 500 characters", () => {
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, password: "abcdefgh" }).success).toBe(false);
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, availability: "x".repeat(501) }).success).toBe(false);
   });
 });
