@@ -113,6 +113,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 1 | Moved to Node 26 LTS. Dependabot ignores TypeScript 7 and ESLint major bumps |
 | Nov 4 | SQL baseline became the initial Prisma migration; deploy-only workflow and PostgreSQL CI checks are required |
 | Nov 5 | Login schema checks only a non-empty password (max 128); the complexity rules apply at registration and reset |
+| Nov 5 | Uploads go only through `src/lib/storage.ts`: random keys like `folder/uuid.ext`, the database stores only the key, signed URLs last 5 minutes by default (max 1 hour) and are created only after role and ownership checks |
+| Nov 5 | Uploads go only through `src/lib/storage.ts`: random keys like `folder/uuid.ext`, the database stores only the key, signed URLs last 5 minutes by default (max 1 hour) and are created only after role and ownership checks |
 
 ## 10. Open questions
 
