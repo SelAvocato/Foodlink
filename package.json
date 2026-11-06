@@ -16,6 +16,7 @@
     "db:check": "prisma db execute --file db/ci-check.sql"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "@prisma/client": "^7.10.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.1",
