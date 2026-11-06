@@ -54,7 +54,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 **Actors:** Visitor, Donor (establishment or individual), Volunteer, Admin, AI Vision API.
 
-**Accounts:** Donors and Volunteers self-register and wait for Admin approval: `PENDING` then `ACTIVE` or `REJECTED`, and an account can be `SUSPENDED`. Admin accounts are seeded, never created through public registration. Existing Admins can also create staff accounts (planned for the next sprint). Login is refused with a named reason for Pending, Rejected or Suspended accounts.
+**Accounts:** Donors and Volunteers self-register and wait for Admin approval: `PENDING` then `ACTIVE` or `REJECTED`, and an account can be `SUSPENDED`. Admin accounts are seeded, never created through public registration. Existing Admins can also create staff accounts (planned for the next sprint). Login is refused with a named reason for Pending, Rejected or Suspended accounts. Admin review moves: approve and reject only from PENDING, suspend only from ACTIVE, reactivate only from SUSPENDED. Reject and suspend need a reason. The reviewer comes from the session and the target user from the URL (`src/contracts/review.ts`).
 
 **Donation statuses (13):** `DRAFT`, `SCREENED`, `POSTED`, `ACCEPTED`, `ASSIGNED`, `PICKED_UP`, `DELIVERED`, `CLOSED`, plus exits `REJECTED`, `DECLINED`, `REJECTED_AT_PICKUP`, `CANCELLED`, `EXPIRED`. Shared enums live in `src/contracts/enums.ts` and must match the database.
 
@@ -117,7 +117,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 5 | Login schema checks only a non-empty password (max 128); the complexity rules apply at registration and reset |
 | Nov 5 | Uploads go only through `src/lib/storage.ts`: random keys like `folder/uuid.ext` (unknown folders and content types are refused), the database stores only the key, signed URLs last 5 minutes by default (max 1 hour) and are created only after role and ownership checks |
 | Nov 5 | Registration contracts: Donor must send a map pin, Volunteer's pin is optional (the PDF asks Volunteers only for an address). Consent is stored in `user_consents`, with the type and policy version as constants in `src/contracts/registration.ts` |
-| Nov 5 | Passwords are hashed with Argon2id (`@node-rs/argon2`: 19 MiB, 2 passes, 1 lane) only through `src/lib/password.ts`. Registration will use `hashPassword` and Auth.js login will use `verifyPassword` when those flows are built, so there is one place to change |
+| Nov 6 | Passwords are hashed with Argon2id (`@node-rs/argon2`: 19 MiB, 2 passes, 1 lane) only through `src/lib/password.ts`. Registration will use `hashPassword` and Auth.js login will use `verifyPassword` when those flows are built, so there is one place to change |
+| Nov 6 | Account review rules live in `src/contracts/review.ts` (`resolveReview` checks the current status). A rejected account cannot be re-approved, and suspend applies to ACTIVE accounts only |
 
 ## 10. Open questions
 
