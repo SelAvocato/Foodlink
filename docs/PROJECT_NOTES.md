@@ -16,7 +16,7 @@ Source of truth for behavior: the "FoodLink System Structure & Development Plan"
 - Next.js 16 (App Router, TypeScript, `src/` dir, `@/*` alias), React 19, React Compiler on, Cache Components off
 - Tailwind CSS v4 with shadcn/ui (Radix base). Components live in `src/components/ui`
 - Zod 4 for validation, Vitest 5 for tests
-- Planned, not built yet: PostgreSQL + Prisma (Supabase), Auth.js with JWT sessions, Supabase storage
+- PostgreSQL + Prisma (Supabase): schema and baseline migration are merged, `src/lib/db.ts` is pending (A3). Planned, not built yet: Auth.js with JWT sessions and the Supabase bucket with its env variables (the helper `src/lib/storage.ts` is merged)
 - Hosting: Vercel Hobby (free). Preview per PR, production from `main`
 - Node **26** (Active LTS). Pinned in `.nvmrc`, `package.json` `engines`, `@types/node` and the Vercel setting. Run `nvm install 26` once
 - Next.js 16 renamed `middleware.ts` to **`proxy.ts`**. The PDF still says middleware
@@ -24,6 +24,7 @@ Source of truth for behavior: the "FoodLink System Structure & Development Plan"
 Held back on purpose (do not "fix" these):
 - TypeScript 7 and ESLint 10: the lint tooling (`typescript-eslint`, React and import plugins) does not support them yet. Dependabot ignores them
 - Do not run `npm audit fix --force`. It downgrades `shadcn`. The remaining audit warnings are inside the shadcn CLI, not the shipped app
+- Prisma 8: the `latest` tag on npm is a release candidate. Stay on 7.10.1
 
 ## 3. Commands
 
@@ -53,7 +54,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 **Actors:** Visitor, Donor (establishment or individual), Volunteer, Admin, AI Vision API.
 
-**Accounts:** Donors and Volunteers self-register and wait for Admin approval: `PENDING` then `ACTIVE` or `REJECTED`, and an account can be `SUSPENDED`. Admin accounts are seeded, never created through public registration. Login is refused with a named reason for Pending, Rejected or Suspended accounts.
+**Accounts:** Donors and Volunteers self-register and wait for Admin approval: `PENDING` then `ACTIVE` or `REJECTED`, and an account can be `SUSPENDED`. Admin accounts are seeded, never created through public registration. Existing Admins can also create staff accounts (planned for the next sprint). Login is refused with a named reason for Pending, Rejected or Suspended accounts.
 
 **Donation statuses (13):** `DRAFT`, `SCREENED`, `POSTED`, `ACCEPTED`, `ASSIGNED`, `PICKED_UP`, `DELIVERED`, `CLOSED`, plus exits `REJECTED`, `DECLINED`, `REJECTED_AT_PICKUP`, `CANCELLED`, `EXPIRED`. Shared enums live in `src/contracts/enums.ts` and must match the database.
 
@@ -102,6 +103,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - JWT sessions keep a suspended user signed in until the token expires. Re-check account status in `proxy.ts` or `requireRole()`
 - The Tailwind setup uses a custom Turbopack loader in `next.config.ts`. If styles break, switch to the documented `@tailwindcss/postcss` setup
 - GitHub repo invitations expire. Resend from Settings, Collaborators if a teammate cannot see the repo
+- `next-auth` v5 is still on the `beta` tag (5.0.0-beta.32 on 5 Nov 2026) and the `latest` tag is v4. Pin an exact version when installing
 
 ## 9. Decision log
 
@@ -123,8 +125,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Whether pending accounts may log in with posting locked, or are blocked at login
 - Email provider (Resend needs a verified domain; plain SMTP is the fallback) and AI vision provider
 - Badge thresholds for achievements
-- How to run the expiry job on the free Vercel plan
-- Whether Prisma Migrate or the SQL files own the schema
+- How to run the expiry job on the free Vercel plan (sprint plan A9: a GitHub Actions workflow every 15 minutes calling a secured endpoint)
+- Retention for cleanup (1 day for one-time codes, 90 days for read notifications) and whether Volunteers keep seeing the Donor's phone number after a donation closes
 
 ## 11. Next up
 
