@@ -3,7 +3,7 @@
 Living notes for teammates and AI tools. Read this before making changes.
 Keep it short. When a PR changes a decision, a rule or a gotcha below, update this file in the same PR.
 
-Last updated: 2026-11-05
+Last updated: 2026-11-06
 
 ## 1. What FoodLink is
 
@@ -104,6 +104,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - The Tailwind setup uses a custom Turbopack loader in `next.config.ts`. If styles break, switch to the documented `@tailwindcss/postcss` setup
 - GitHub repo invitations expire. Resend from Settings, Collaborators if a teammate cannot see the repo
 - `next-auth` v5 is still on the `beta` tag (5.0.0-beta.32 on 5 Nov 2026) and the `latest` tag is v4. Pin an exact version when installing
+- The password hash lives in `user_credentials`, not in `users`. Creating a user means writing both rows in one transaction
 
 ## 9. Decision log
 
@@ -119,6 +120,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 5 | Registration contracts: Donor must send a map pin, Volunteer's pin is optional (the PDF asks Volunteers only for an address). Consent is stored in `user_consents`, with the type and policy version as constants in `src/contracts/registration.ts` |
 | Nov 6 | Passwords are hashed with Argon2id (`@node-rs/argon2`: 19 MiB, 2 passes, 1 lane) only through `src/lib/password.ts`. Registration will use `hashPassword` and Auth.js login will use `verifyPassword` when those flows are built, so there is one place to change |
 | Nov 6 | Account review rules live in `src/contracts/review.ts` (`resolveReview` checks the current status). A rejected account cannot be re-approved, and suspend applies to ACTIVE accounts only |
+| Nov 6 | Donor registration is one function (`src/server/registration/register-donor.ts`) with an injected store. It hashes the password, uploads the proof, then writes the address, user (PENDING), credentials, consent and proof document in one transaction, and removes the uploaded file if the transaction fails. The proof arrives in the same request because a pending user has no session. `user_documents.original_filename` stores only the random file name from the storage key, never the name the user chose |
 
 ## 10. Open questions
 
