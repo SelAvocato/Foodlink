@@ -111,6 +111,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - The signup route answers 409 when an email is already registered, which reveals that the email has an account. Accepted for now because the System PDF says a duplicate email is refused
 - Vercel Functions reject request bodies over 4.5 MB before the code runs (413). The signup routes therefore accept proofs up to 4 MB, even though the shared image rule (`src/contracts/image.ts`) allows 5 MB, so the browser must compress photos before sending. If 4 MB proves too small, upload proofs directly to Supabase with a signed upload URL instead
 - Account review sends no email or in-app notification yet. The System PDF says the user is emailed on approval and rejection; add the email after the transaction commits once the email provider is chosen
+- There is no HTML-stripping sanitizer yet. Free text such as the food name and description is stored as trimmed plain text, while the System PDF asks for HTML to be stripped. Add it in the security pass for every free-text field
 
 ## 9. Decision log
 
@@ -131,6 +132,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 7 | Uploads go to the private Supabase Storage bucket `foodlink-uploads` with the server-side secret key, wired in `src/server/storage.ts`. Photos are compressed in the browser first because Vercel Functions reject request bodies over 4.5 MB |
 | Nov 7 | Volunteer registration reuses the shared flow in `src/server/registration/register-account.ts`; Donor and Volunteer differ only in the user row and the proof type. The Volunteer's proof is saved as `VALID_ID`. The map pin is optional and is saved only when both coordinates are sent. `availability` is saved for Volunteers only |
 | Nov 7 | Account review is one function (`src/server/review/review-account.ts`) with an injected store. In one transaction it changes the status with a conditional update, marks the user's pending proof documents APPROVED (approve) or REJECTED (reject, with the reason as review note), and writes one `user_reviews` row and one `audit_logs` row (the reason text is not copied into the audit details). Suspend and reactivate leave documents alone. Only Donor and Volunteer accounts can be reviewed, and nobody can review themselves. The route will call it behind `requireRole("ADMIN")` once that exists |
+| Nov 7 | Donation drafts are inserted directly with the database default status DRAFT (`src/server/drafts/`); creating, editing or discarding a draft is not a status change, so it writes no tracking event or audit row and `transitionDonation()` is not involved. A Donor can edit a draft in DRAFT or SCREENED, change its category only in DRAFT, and discard it in either (sets `deleted_at`). Individual Donors can only use categories with `allowed_for_individuals`. The API uses category, allergen and tag codes, not numeric ids. Pickup address and window are saved at posting (B10) |
 
 ## 10. Open questions
 
@@ -140,6 +142,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Badge thresholds for achievements
 - How to run the expiry job on the free Vercel plan (sprint plan A9: a GitHub Actions workflow every 15 minutes calling a secured endpoint)
 - Retention for cleanup (1 day for one-time codes, 90 days for read notifications) and whether Volunteers keep seeing the Donor's phone number after a donation closes
+- Wizard order: the System PDF starts the donation wizard with the photo, but a draft needs category, food name and portions to exist, so the draft is created before the photo is attached. Confirm with the team. Also confirm with Veni that drafts may be inserted directly, because the PDF lists "(new) to DRAFT" as a transition
 
 ## 11. Next up
 1. Finish the backend sprint (3 to 16 Nov). Sprint demo on 16 Nov: one donation goes from DRAFT to CLOSED
