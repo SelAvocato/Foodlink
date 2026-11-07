@@ -71,6 +71,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Data Privacy Act (RA 10173): record consent with a timestamp, show contact details only to users involved in a donation, never store names of individual beneficiaries (distribution reports show places and groups served only), no identifiable faces in photos
 - Role checks happen in `proxy.ts` and again in every API handler (`requireRole(...)` plus an ownership check). The role comes from the verified JWT, never the request body
 - Zod validation on every request, unknown fields rejected, free text stored as plain text
+- Login uses Auth.js credentials with JWT sessions. Unknown users and incorrect passwords receive `Invalid username or password`; PENDING, REJECTED and SUSPENDED users receive their named account status. Login failures and successes are written to append-only `audit_logs` without passwords, email addresses or raw IP addresses
+- Login lockout is progressive and non-permanent: the fifth consecutive failed password attempt locks the account for 15 minutes, the sixth for 30 minutes, and the seventh or later for 60 minutes. A successful login resets the counter and lock
 - Uploads: JPEG, PNG or WebP up to 5 MB, random names, private bucket, signed URLs
 - QR token: 32 bytes, never expose raw ids, scans validated (assigned volunteer, correct stage, not expired) and idempotent
 - OTP: 6 digits, 5-minute expiry, at most 3 per 15 minutes. Passwords need uppercase, lowercase, number, special character and 8 to 128 characters at registration and password reset. Login only checks that a password was sent (1 to 128 characters), so a seeded Admin or a later policy change never fails validation
