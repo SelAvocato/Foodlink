@@ -13,6 +13,10 @@ export const serverSchema = z.object({
     DATABASE_URL: postgresUrl,
     DIRECT_URL: postgresUrl,
     AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
+    SUPABASE_URL: webUrl,
+    SUPABASE_PUBLISHABLE_KEY: z.string().min(1, "cannot be empty"),
+    SUPABASE_SECRET_KEY: z.string().min(1, "cannot be empty"),
+    SUPABASE_JWKS_URL: webUrl,
 });
 
 /** Variables that are safe to expose to the browser. They must start with NEXT_PUBLIC_. */

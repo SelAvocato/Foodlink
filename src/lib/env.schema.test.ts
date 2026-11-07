@@ -6,7 +6,8 @@ import { clientSchema, envKeys, serverSchema } from "@/lib/env.schema";
 function exampleKeys(): string[] {
     const text = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
     return text
-        .split("\n")
+        // Fix: Split by \r\n or \n to safely handle across operating systems
+        .split(/\r?\n/) 
         .map((line) => line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1])
         .filter((key): key is string => Boolean(key));
 }
@@ -16,6 +17,10 @@ const valid = {
     DIRECT_URL: "postgresql://user:pass@localhost:5432/foodlink",
     AUTH_SECRET: "a".repeat(32),
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    SUPABASE_URL: "https://supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "mock-pub-key",
+    SUPABASE_SECRET_KEY: "mock-secret-key",
+    SUPABASE_JWKS_URL: "https://supabase.co/v1/auth/jwks",
 };
 
 describe("env", () => {
