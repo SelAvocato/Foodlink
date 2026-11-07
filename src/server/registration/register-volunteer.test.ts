@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MAX_IMAGE_BYTES } from "@/contracts/image";
 import {
   PRIVACY_CONSENT_TYPE,
@@ -174,6 +174,11 @@ describe("registerVolunteer", () => {
     });
     expect(store.addresses).toHaveLength(1);
     expect(store.addresses[0]).toMatchObject({ latitude: null, longitude: null });
+    expect(store.users[0]).toMatchObject({
+      addressId: store.addresses[0]?.id,
+      email: "volunteer@example.com",
+      fullName: "Test Volunteer Person",
+    });
     expect(result.userId).toBe(store.users[0]?.id);
   });
 
@@ -196,6 +201,11 @@ describe("registerVolunteer", () => {
     const withoutNote = await registerVolunteer(freshDeps, volunteerInput(), jpegProof);
     expect(withoutNote.ok).toBe(true);
     expect(freshStore.users[0]).toMatchObject({ availability: null });
+
+    const { store: emptyStore, deps: emptyDeps } = setup();
+    const emptyNote = await registerVolunteer(emptyDeps, volunteerInput({ availability: "" }), jpegProof);
+    expect(emptyNote.ok).toBe(true);
+    expect(emptyStore.users[0]).toMatchObject({ availability: null });
   });
 
   it("stores the proof as a VALID_ID document with the random file name only", async () => {
@@ -299,10 +309,18 @@ describe("registerVolunteer", () => {
       remove: async () => ({ data: null, error: { message: "remove failed" } }),
     });
     store.boom = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    // A leaked cleanup error would throw "Storage remove failed" instead of "boom".
-    await expect(registerVolunteer(deps, volunteerInput(), jpegProof)).rejects.toThrow("boom");
-    expect(uploads).toHaveLength(1);
-    expectNoRows(store);
+    try {
+      // A leaked cleanup error would throw "Storage remove failed" instead of "boom".
+      await expect(registerVolunteer(deps, volunteerInput(), jpegProof)).rejects.toThrow("boom");
+      expect(uploads).toHaveLength(1);
+      expectNoRows(store);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError.mock.calls[0]?.[0]).toContain("registerAccount");
+      expect(consoleError.mock.calls[0]?.[1]).toMatchObject({ key: uploads[0] });
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
