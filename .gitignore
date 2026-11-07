@@ -45,4 +45,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# db
 /src/generated/prisma
+
+# personal
+soberano/
+cruz/
+decena/
