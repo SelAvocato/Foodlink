@@ -110,6 +110,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - The Donor and Volunteer signup routes (`/api/auth/register/donor` and `/api/auth/register/volunteer`) are public and have no rate limit yet, so a client can create many pending accounts and proof uploads with different emails. A rate limit on signup is a release gate: it must be in place before the site is public. The limiter is planned for the next sprint
 - The signup route answers 409 when an email is already registered, which reveals that the email has an account. Accepted for now because the System PDF says a duplicate email is refused
 - Vercel Functions reject request bodies over 4.5 MB before the code runs (413). The signup routes therefore accept proofs up to 4 MB, even though the shared image rule (`src/contracts/image.ts`) allows 5 MB, so the browser must compress photos before sending. If 4 MB proves too small, upload proofs directly to Supabase with a signed upload URL instead
+- Account review sends no email or in-app notification yet. The System PDF says the user is emailed on approval and rejection; add the email after the transaction commits once the email provider is chosen
 
 ## 9. Decision log
 
@@ -129,6 +130,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 6 | Pull requests are merged with merge commits, not squash |
 | Nov 7 | Uploads go to the private Supabase Storage bucket `foodlink-uploads` with the server-side secret key, wired in `src/server/storage.ts`. Photos are compressed in the browser first because Vercel Functions reject request bodies over 4.5 MB |
 | Nov 7 | Volunteer registration reuses the shared flow in `src/server/registration/register-account.ts`; Donor and Volunteer differ only in the user row and the proof type. The Volunteer's proof is saved as `VALID_ID`. The map pin is optional and is saved only when both coordinates are sent. `availability` is saved for Volunteers only |
+| Nov 7 | Account review is one function (`src/server/review/review-account.ts`) with an injected store. In one transaction it changes the status with a conditional update, marks the user's pending proof documents APPROVED (approve) or REJECTED (reject, with the reason as review note), and writes one `user_reviews` row and one `audit_logs` row (the reason text is not copied into the audit details). Suspend and reactivate leave documents alone. Only Donor and Volunteer accounts can be reviewed, and nobody can review themselves. The route will call it behind `requireRole("ADMIN")` once that exists |
 
 ## 10. Open questions
 
