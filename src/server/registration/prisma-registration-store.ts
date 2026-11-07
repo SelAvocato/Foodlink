@@ -34,6 +34,7 @@ function createTransactionAdapter(tx: typeof prisma): RegistrationTx {
                         contact_number: row.contactNumber,
                         donor_type: row.donorType,
                         business_name: row.businessName,
+                        availability: row.availability ?? null,
                         address_id: row.addressId,
                     },
                     select: { id: true },
