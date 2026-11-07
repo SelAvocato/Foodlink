@@ -7,9 +7,13 @@ export type DonationActor = {
 
 export type TransitionDonationPayload = {
   acceptedById?: string;
+  closedAt?: Date;
+  eventNote?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  notificationUserIds?: string[];
   reason?: string;
   qrToken?: string;
-  [key: string]: unknown;
+  screeningId?: string;
 };
 
 /**
@@ -21,4 +25,4 @@ export type TransitionDonation = (
   to: DonationStatus,
   actor: DonationActor,
   payload?: TransitionDonationPayload,
-) => Promise<void>;
+) => Promise<{ from: DonationStatus; to: DonationStatus }>;
