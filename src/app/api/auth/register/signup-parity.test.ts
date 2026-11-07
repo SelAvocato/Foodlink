@@ -10,7 +10,12 @@ vi.mock("@/server/registration/prisma-registration-store", () => ({ prismaRegist
 vi.mock("@/server/storage", () => ({ createServerStorage: vi.fn(() => ({})) }));
 
 const proofBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
-const addressJson = JSON.stringify({ streetLine1: "123 Katipunan Ave", city: "Quezon City" });
+const addressJson = JSON.stringify({
+  streetLine1: "123 Katipunan Ave",
+  city: "Quezon City",
+  latitude: 14.676,
+  longitude: 121.0437,
+});
 
 // A fresh body per request, so no iteration depends on an earlier one.
 function signupForm(kind: "donor" | "volunteer"): FormData {
