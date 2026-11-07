@@ -16,7 +16,7 @@ Source of truth for behavior: the "FoodLink System Structure & Development Plan"
 - Next.js 16 (App Router, TypeScript, `src/` dir, `@/*` alias), React 19, React Compiler on, Cache Components off
 - Tailwind CSS v4 with shadcn/ui (Radix base). Components live in `src/components/ui`
 - Zod 4 for validation, Vitest 5 for tests
-- PostgreSQL + Prisma (Supabase): schema and baseline migration are merged, `src/lib/db.ts` is pending (A3). Planned, not built yet: Auth.js with JWT sessions and the Supabase bucket with its env variables (the helper `src/lib/storage.ts` is merged)
+- PostgreSQL + Prisma 7 (Supabase): the schema, baseline migration and `src/server/db.ts` (Prisma client with the `@prisma/adapter-pg` driver adapter) are merged. The Auth.js JWT login backend (`src/server/auth/login.ts`), Donor registration (`src/server/registration/`, route `/api/auth/register/donor`) and the Supabase Storage wiring (`src/server/storage.ts`, helper `src/lib/storage.ts`) are merged too
 - Hosting: Vercel Hobby (free). Preview per PR, production from `main`
 - Node **26** (Active LTS). Pinned in `.nvmrc`, `package.json` `engines`, `@types/node` and the Vercel setting. Run `nvm install 26` once
 - Next.js 16 renamed `middleware.ts` to **`proxy.ts`**. The PDF still says middleware
@@ -40,7 +40,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 ## 4. Workflow
 
-- One long-lived branch: `main`. Work on a feature branch, open a PR into `main`, squash merge. Head branches delete automatically
+- One long-lived branch: `main`. Work on a feature branch, open a PR into `main`, merge with a merge commit (not squash). Head branches delete automatically
 - Never push to `main` directly. The `protect-main` ruleset blocks it
 - Commit messages and **PR titles**: `type(scope): description`. Types: feat, fix, chore, ci, docs, refactor, style, test, build. A scope is required. Scopes: donor, volunteer, admin, landing, auth, contracts, ui, db, workflow, config, deps, build
 - Required checks on every PR: `checks` (lint, typecheck, test, build) and `pr-title`
@@ -90,7 +90,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 ## 7. Database status
 
 - The database author's schema replaces an older Receiver-based design and matches the System PDF. All fixes sent back to the author are in. The files live in `db/baseline/`: `001_schema.sql`, then `002_objects.sql`. Apply them in that order
-- Applies cleanly on PostgreSQL 16. Not tested on PostgreSQL 15, Supabase or Prisma
+- Applies cleanly on PostgreSQL 16 through Prisma (`prisma migrate deploy` runs in the CI `database` job). Not tested on PostgreSQL 15. Not confirmed on the hosted Supabase database
 - `donations.qr_token` (random 32 bytes, base64url) is required by a CHECK for POSTED and every later status, so the update to POSTED must write it. Never select it in list queries
 - Proof documents and photos are images only (JPEG, PNG or WebP, up to 5 MB)
 - `fn_donation_report` does not check who is calling. The API handler must confirm ownership or role first
@@ -126,6 +126,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 6 | Passwords are hashed with Argon2id (`@node-rs/argon2`: 19 MiB, 2 passes, 1 lane) only through `src/lib/password.ts`. Registration will use `hashPassword` and Auth.js login will use `verifyPassword` when those flows are built, so there is one place to change |
 | Nov 6 | Account review rules live in `src/contracts/review.ts` (`resolveReview` checks the current status). A rejected account cannot be re-approved, and suspend applies to ACTIVE accounts only |
 | Nov 6 | Donor registration is one function (`src/server/registration/register-donor.ts`) with an injected store. It hashes the password, uploads the proof, then writes the address, user (PENDING), credentials, consent and proof document in one transaction, and removes the uploaded file if the transaction fails. The proof arrives in the same request because a pending user has no session. `user_documents.original_filename` stores only the random file name from the storage key, never the name the user chose |
+| Nov 6 | Pull requests are merged with merge commits, not squash |
+| Nov 7 | Uploads go to the private Supabase Storage bucket `foodlink-uploads` with the server-side secret key, wired in `src/server/storage.ts`. Photos are compressed in the browser first because Vercel Functions reject request bodies over 4.5 MB |
 
 ## 10. Open questions
 
@@ -137,8 +139,6 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Retention for cleanup (1 day for one-time codes, 90 days for read notifications) and whether Volunteers keep seeing the Donor's phone number after a donation closes
 
 ## 11. Next up
-
-1. Finish the Vercel checks once teammates accept the repo invite (test a PR from a teammate)
-2. Auth and registration schemas are in `src/contracts/auth.ts` and `src/contracts/registration.ts`. Next: the seed script (once the Prisma setup is fixed), then the registration APIs
-3. Build the application features on top of the Prisma client and keep the SQL baseline and initial migration aligned
-4. Auth pages with shadcn/ui and mock data, then wait for the UI/UX designs on the landing page and dashboards
+1. Finish the backend sprint (3 to 16 Nov). Sprint demo on 16 Nov: one donation goes from DRAFT to CLOSED
+2. After the sprint, work through the next-sprint list in the Task Tracker (admin screening queue, real AI provider, notifications, incidents, audit log viewer, rate limiter)
+3. Auth pages and dashboards with shadcn/ui once the UI/UX designs arrive
