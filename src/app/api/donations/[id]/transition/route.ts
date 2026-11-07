@@ -1,13 +1,12 @@
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DonationStatus } from "@/contracts/enums";
-import { authOptions } from "@/lib/auth";
 import {
     DonationTransitionError,
     prismaTransitionStore,
     transitionDonation,
 } from "@/server/donations/transition-donation";
+import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 
 export const runtime = "nodejs";
 
@@ -31,11 +30,6 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
 ) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.status !== "ACTIVE") {
-        return errorResponse("UNAUTHENTICATED", "Sign in with an active account to transition a donation.", 401);
-    }
-
     const { id } = await context.params;
     if (!z.uuid().safeParse(id).success) {
         return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
@@ -59,16 +53,20 @@ export async function POST(
     }
 
     try {
+        const actor = await requireRole(["ADMIN", "DONOR", "VOLUNTEER"]);
         const { to, ...payload } = parsed.data;
         const result = await transitionDonation(
             { store: prismaTransitionStore },
             id,
             to as typeof DonationStatus[keyof typeof DonationStatus],
-            { id: session.user.id, role: session.user.role },
+            actor,
             payload,
         );
         return NextResponse.json(result, { status: 200 });
     } catch (error) {
+        if (error instanceof AuthorizationError) {
+            return errorResponse(error.code, error.message, error.code === "UNAUTHENTICATED" ? 401 : 403);
+        }
         if (error instanceof DonationTransitionError) {
             const status =
                 error.code === "NOT_FOUND" ? 404 :
