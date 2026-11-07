@@ -17,6 +17,10 @@ const valid = {
     DIRECT_URL: "postgresql://user:pass@localhost:5432/foodlink",
     AUTH_SECRET: "a".repeat(32),
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    SUPABASE_URL: "https://supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "mock-pub-key",
+    SUPABASE_SECRET_KEY: "mock-secret-key",
+    SUPABASE_JWKS_URL: "https://supabase.co/v1/auth/jwks",
 };
 
 describe("env", () => {
