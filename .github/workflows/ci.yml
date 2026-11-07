@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 10
     env:
       DIRECT_URL: postgresql://postgres:dev@localhost:5433/foodlink
+      DATABASE_URL: postgresql://postgres:dev@localhost:5433/foodlink
+      AUTH_SECRET: super_secret_random_string_at_least_thirty_two_characters_long
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v7
 
@@ -52,6 +55,7 @@ jobs:
           --health-retries 5
     env:
       DIRECT_URL: postgresql://postgres:dev@localhost:5433/foodlink
+      DATABASE_URL: postgresql://postgres:dev@localhost:5433/foodlink
     steps:
       - uses: actions/checkout@v7
 
