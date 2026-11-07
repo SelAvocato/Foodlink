@@ -21,6 +21,7 @@ const valid = {
     SUPABASE_PUBLISHABLE_KEY: "mock-pub-key",
     SUPABASE_SECRET_KEY: "mock-secret-key",
     SUPABASE_JWKS_URL: "https://supabase.co/v1/auth/jwks",
+    SUPABASE_STORAGE_BUCKET: "foodlink-private",
 };
 
 describe("env", () => {
