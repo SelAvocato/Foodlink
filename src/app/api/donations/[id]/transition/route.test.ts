@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-    getServerSession: vi.fn(),
     transitionDonation: vi.fn(),
+    requireRole: vi.fn(),
+    AuthorizationError: class AuthorizationError extends Error {
+        code: string;
+        constructor(code: string, message: string) {
+            super(message);
+            this.code = code;
+        }
+    },
     DonationTransitionError: class DonationTransitionError extends Error {
         code: string;
         constructor(code: string, message: string) {
@@ -12,8 +19,10 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock("next-auth", () => ({ getServerSession: mocks.getServerSession }));
-vi.mock("@/lib/auth", () => ({ authOptions: {} }));
+vi.mock("@/server/auth/require-role", () => ({
+    AuthorizationError: mocks.AuthorizationError,
+    requireRole: mocks.requireRole,
+}));
 vi.mock("@/server/donations/transition-donation", () => ({
     DonationTransitionError: mocks.DonationTransitionError,
     prismaTransitionStore: {},
@@ -23,20 +32,30 @@ vi.mock("@/server/donations/transition-donation", () => ({
 import { POST } from "./route";
 
 const context = { params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }) };
-const activeSession = {
-    user: { id: "admin-1", role: "ADMIN", status: "ACTIVE" },
-};
 
 beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getServerSession.mockResolvedValue(activeSession);
+    mocks.requireRole.mockResolvedValue({
+        id: "admin-1",
+        email: "admin@foodlink.test",
+        name: "FoodLink Admin",
+        role: "ADMIN",
+        status: "ACTIVE",
+    });
     mocks.transitionDonation.mockResolvedValue({ from: "POSTED", to: "DECLINED" });
 });
 
 describe("POST /api/donations/[id]/transition", () => {
     it("requires an active authenticated session", async () => {
-        mocks.getServerSession.mockResolvedValue(null);
-        const response = await POST(new Request("http://localhost"), context);
+        mocks.requireRole.mockRejectedValue(new mocks.AuthorizationError("UNAUTHENTICATED", "Sign in"));
+        const response = await POST(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({ to: "ACCEPTED" }),
+                headers: { "content-type": "application/json" },
+            }),
+            context,
+        );
         expect(response.status).toBe(401);
         expect(mocks.transitionDonation).not.toHaveBeenCalled();
     });
@@ -68,7 +87,13 @@ describe("POST /api/donations/[id]/transition", () => {
             { store: {} },
             "11111111-1111-4111-8111-111111111111",
             "DECLINED",
-            { id: "admin-1", role: "ADMIN" },
+            {
+                id: "admin-1",
+                email: "admin@foodlink.test",
+                name: "FoodLink Admin",
+                role: "ADMIN",
+                status: "ACTIVE",
+            },
             { reason: "Unsafe food" },
         );
     });
