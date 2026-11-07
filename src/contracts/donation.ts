@@ -6,14 +6,42 @@ export type DonationActor = {
 };
 
 export type TransitionDonationPayload = {
-  acceptedById?: string;
-  closedAt?: Date;
+  hasDistribution?: boolean;
   eventNote?: string;
   metadata?: Record<string, string | number | boolean | null>;
   notificationUserIds?: string[];
   reason?: string;
   qrToken?: string;
   screeningId?: string;
+  volunteerId?: string;
+};
+
+export type TransitionStore = {
+  transaction<T>(work: (tx: TransitionTx) => Promise<T>): Promise<T>;
+};
+
+export type TransitionTx = {
+  getDonation(id: string): Promise<{
+    status: DonationStatus;
+    donorId: string;
+    pickupEnd: Date | null;
+    currentVolunteerId: string | null;
+  } | null>;
+  updateDonation(input: {
+    id: string;
+    from: DonationStatus;
+    to: DonationStatus;
+    now: Date;
+    actorId: string | null;
+    closedAt: Date | null;
+    qrToken: string | null;
+  }): Promise<boolean>;
+  getActiveVolunteer(id: string): Promise<{ id: string; status: "ACTIVE"; role: "VOLUNTEER" } | null>;
+  insertAssignment(input: { donationId: string; volunteerId: string; assignedById: string; assignedAt: Date }): Promise<void>;
+  insertExit(input: { donationId: string; status: DonationStatus; actorId: string | null; actorRole: Role | null; reason: string | null; screeningId?: string }): Promise<void>;
+  insertTracking(input: { donationId: string; from: DonationStatus; to: DonationStatus; actorId: string | null; note?: string; metadata: Record<string, string | number | boolean | null> }): Promise<void>;
+  insertNotifications(rows: Array<{ userId: string; type: string; title: string; body: string; donationId: string }>): Promise<void>;
+  insertAudit(input: { actorId: string | null; targetId: string; details: Record<string, string | number | boolean | null> }): Promise<void>;
 };
 
 /**
@@ -21,8 +49,9 @@ export type TransitionDonationPayload = {
  * transition, tracking, notification and audit writes in one transaction.
  */
 export type TransitionDonation = (
+  deps: { store: TransitionStore },
   id: string,
   to: DonationStatus,
-  actor: DonationActor,
+  actor: DonationActor | null,
   payload?: TransitionDonationPayload,
 ) => Promise<{ from: DonationStatus; to: DonationStatus }>;
