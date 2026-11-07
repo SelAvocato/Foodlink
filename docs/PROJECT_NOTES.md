@@ -3,7 +3,7 @@
 Living notes for teammates and AI tools. Read this before making changes.
 Keep it short. When a PR changes a decision, a rule or a gotcha below, update this file in the same PR.
 
-Last updated: 2026-11-06
+Last updated: 2026-11-07
 
 ## 1. What FoodLink is
 
@@ -107,6 +107,9 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - GitHub repo invitations expire. Resend from Settings, Collaborators if a teammate cannot see the repo
 - `next-auth` v5 is still on the `beta` tag (5.0.0-beta.32 on 5 Nov 2026) and the `latest` tag is v4. Pin an exact version when installing
 - The password hash lives in `user_credentials`, not in `users`. Creating a user means writing both rows in one transaction
+- The Donor signup route (`/api/auth/register/donor`) is public and has no rate limit yet, so a client can create many pending accounts and proof uploads with different emails. A rate limit on signup is a release gate: it must be in place before the site is public. The limiter is planned for the next sprint
+- The signup route answers 409 when an email is already registered, which reveals that the email has an account. Accepted for now because the System PDF says a duplicate email is refused
+- Vercel Functions reject request bodies over 4.5 MB before the code runs (413). The Donor signup route therefore accepts proofs up to 4 MB, even though the shared image rule (`src/contracts/image.ts`) allows 5 MB, so the browser must compress photos before sending. If 4 MB proves too small, upload proofs directly to Supabase with a signed upload URL instead
 
 ## 9. Decision log
 
