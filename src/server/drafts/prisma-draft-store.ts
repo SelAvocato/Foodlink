@@ -5,6 +5,7 @@ import type { DraftStore, DraftTx } from "./donation-drafts";
 type DraftLockRow = { donor_id: string; status: string; food_category_id: number };
 
 const DONATION_STATUSES: readonly string[] = Object.values(DonationStatus);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // updated_at is left to the set_updated_at trigger in db/baseline/001_schema.sql.
 function createTransactionAdapter(tx: typeof prisma): DraftTx {
@@ -54,6 +55,8 @@ function createTransactionAdapter(tx: typeof prisma): DraftTx {
       });
     },
     async getDraft(id) {
+      // A malformed id would make the ::uuid cast throw; treat it as "no such draft".
+      if (!UUID_PATTERN.test(id)) return null;
       // FOR UPDATE: the allergen and tag writes are not guarded by a conditional update.
       const rows = await tx.$queryRaw<DraftLockRow[]>`
         SELECT donor_id, status::text AS status, food_category_id
