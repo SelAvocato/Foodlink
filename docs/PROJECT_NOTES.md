@@ -60,6 +60,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 **Rules that must not be broken:**
 - Every status change goes through one function, `transitionDonation(id, to, actor, payload)`. It checks the allowed-transition table and, in one transaction, updates the row, writes the TrackingEvent, creates Notifications and appends the AuditLog. Emails are sent after the transaction commits. No other code changes `Donation.status`
+- Draft rows are created directly with status `DRAFT`; `transitionDonation()` changes existing donation status only.
+- Automatic expiry uses a null system actor. It is allowed only for `EXPIRED` transitions after `pickup_end`; human transitions always require a verified actor.
 - Accepting a donation is one atomic update: `UPDATE ... SET status = 'ACCEPTED', accepted_by = $1 WHERE id = $2 AND status = 'POSTED'` and the pickup window not yet passed. One row changed means accepted. Zero means someone else got it
 - Two independent food checks: the Donor's photo, AI screening and checklist at posting, and the Volunteer's photo, AI screening and three yes/no questions at pickup. The Volunteer's pickup decision is the final gate
 - The Volunteer completes the donation after recording distribution entries. Portions distributed plus unusable portions must equal portions donated, and at least one distribution record must exist, before `CLOSED`. Admin can only view and reassign
