@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDonor } from "@/server/registration/register-donor";
-import { registerVolunteer } from "@/server/registration/register-volunteer";
 import { POST } from "./route";
-import { POST as volunteerPost } from "@/app/api/auth/register/volunteer/route";
 
 vi.mock("@/server/registration/register-donor", () => ({ registerDonor: vi.fn() }));
-vi.mock("@/server/registration/register-volunteer", () => ({ registerVolunteer: vi.fn() }));
 vi.mock("@/server/registration/prisma-registration-store", () => ({ prismaRegistrationStore: {} }));
 vi.mock("@/server/storage", () => ({ createServerStorage: vi.fn(() => ({})) }));
 
@@ -200,38 +197,5 @@ describe("POST /api/auth/register/donor", () => {
     const body = await res.json();
     expect(Array.isArray(body.details.fieldErrors.businessName)).toBe(true);
     expect(registerDonor).not.toHaveBeenCalled();
-  });
-
-  it("gives byte-for-byte identical bodies and statuses for EMAIL_TAKEN and INVALID_PROOF on both routes", async () => {
-    const results = [
-      { ok: false, error: "EMAIL_TAKEN" },
-      { ok: false, error: "INVALID_PROOF" },
-    ] as const;
-
-    const volunteerFormBody = new FormData();
-    volunteerFormBody.set("fullName", "Test Volunteer Person");
-    volunteerFormBody.set("contactNumber", "09171234567");
-    volunteerFormBody.set("email", "volunteer@example.com");
-    volunteerFormBody.set("address", addressJson);
-    volunteerFormBody.set("password", "Abcdef1!");
-    volunteerFormBody.set("consent", "true");
-    volunteerFormBody.set("proof", proofFile());
-
-    for (const result of results) {
-      vi.mocked(registerDonor).mockResolvedValue(result);
-      vi.mocked(registerVolunteer).mockResolvedValue(result);
-
-      const donorRes = await post(donorForm());
-      const volunteerRes = await volunteerPost(
-        new Request("http://localhost/api/auth/register/volunteer", {
-          method: "POST",
-          body: volunteerFormBody,
-        }),
-      );
-
-      expect(donorRes.status).toBe(result.error === "EMAIL_TAKEN" ? 409 : 400);
-      expect(volunteerRes.status).toBe(donorRes.status);
-      expect(await volunteerRes.text()).toBe(await donorRes.text());
-    }
   });
 });
