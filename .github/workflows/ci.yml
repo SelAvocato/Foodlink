@@ -22,6 +22,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:dev@localhost:5433/foodlink
       AUTH_SECRET: super_secret_random_string_at_least_thirty_two_characters_long
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SUPABASE_URL: https://supabase.co
+      SUPABASE_PUBLISHABLE_KEY: mock-publishable-key
+      SUPABASE_SECRET_KEY: mock-secret-key
+      SUPABASE_JWKS_URL: https://supabase.co/functions/v1/auth/v1/jwks
     steps:
       - uses: actions/checkout@v7
 
@@ -56,6 +60,10 @@ jobs:
     env:
       DIRECT_URL: postgresql://postgres:dev@localhost:5433/foodlink
       DATABASE_URL: postgresql://postgres:dev@localhost:5433/foodlink
+      SUPABASE_URL: https://supabase.co
+      SUPABASE_PUBLISHABLE_KEY: mock-publishable-key
+      SUPABASE_SECRET_KEY: mock-secret-key
+      SUPABASE_JWKS_URL: https://supabase.co/functions/v1/auth/v1/jwks
     steps:
       - uses: actions/checkout@v7
 
