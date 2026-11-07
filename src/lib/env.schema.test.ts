@@ -6,7 +6,8 @@ import { clientSchema, envKeys, serverSchema } from "@/lib/env.schema";
 function exampleKeys(): string[] {
     const text = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
     return text
-        .split("\n")
+        // Fix: Split by \r\n or \n to safely handle across operating systems
+        .split(/\r?\n/) 
         .map((line) => line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1])
         .filter((key): key is string => Boolean(key));
 }
