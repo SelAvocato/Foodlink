@@ -64,6 +64,7 @@ jobs:
       SUPABASE_PUBLISHABLE_KEY: mock-publishable-key
       SUPABASE_SECRET_KEY: mock-secret-key
       SUPABASE_JWKS_URL: https://supabase.co/functions/v1/auth/v1/jwks
+      SUPABASE_STORAGE_BUCKET: foodlink-private
     steps:
       - uses: actions/checkout@v7
 
