@@ -82,4 +82,4 @@ export const volunteerRegistrationSchema = z.strictObject({
   password,
   consent,
 });
-export type VolunteerRegistrationInput = z.input<typeof volunteerRegistrationSchema>;
+export type VolunteerRegistrationInput = z.infer<typeof volunteerRegistrationSchema>;
