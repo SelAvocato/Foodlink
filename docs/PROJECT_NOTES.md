@@ -104,7 +104,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 - `.gitignore` ignores `.env*` but allows `.env.example`
 - Vercel Hobby cron jobs run at most once per day. The PDF's 15-minute expiry job needs another runner (a scheduled GitHub Actions workflow calling a secured endpoint, or expire on read plus a daily sweep)
-- JWT sessions keep a suspended user signed in until the token expires. Re-check account status in \requireRole()` (and in `proxy.ts` once it runs)`.
+- JWT sessions keep a suspended user signed in until the token expires. Re-check account status in `requireRole()`; the proxy only reads JWT claims, which can be stale.
 - The Tailwind setup uses a custom Turbopack loader in `next.config.ts`. If styles break, switch to the documented `@tailwindcss/postcss` setup
 - GitHub repo invitations expire. Resend from Settings, Collaborators if a teammate cannot see the repo
 - FoodLink uses the pinned `next-auth` v4.24.15 release because the existing Auth.js route and `authOptions` use the v4 API; do not upgrade to the v5 beta without an explicit migration.
@@ -116,6 +116,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - There is no HTML-stripping sanitizer yet. Free text such as the food name and description is stored as trimmed plain text, while the System PDF asks for HTML to be stripped. Add it in the security pass for every free-text field
 - Admin list queries never select `storage_key` or `original_filename`, and the responses are built from an explicit allow-list, so neither value can reach an Admin list response
 - `src/proxy.ts` is the coarse JWT gate for `/admin`, `/donor`, `/volunteer` and their `/api/*` paths. `/admin/login` is intentionally public. API paths receive JSON 401/403 responses; page paths redirect to login. Handlers must still call `requireRole()` because proxy JWT claims can be stale.
+- Proof files are never served through the app: Admins get short-lived signed URLs only, the storage key and original file name never leave the server, and every view is audited.
 
 ## 9. Decision log
 
@@ -140,6 +141,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 8 | A4 authorization is implemented in `src/server/auth/require-role.ts` and `src/proxy.ts`. The proxy gates admin, donor and volunteer paths, leaves `/admin/login` public, returns JSON 401/403 for API paths and redirects page paths. Every handler still calls `requireRole()`, which re-reads the user from the database and rejects deleted, PENDING, REJECTED or SUSPENDED accounts before checking the allowed role. B3 seed data remains a development-only direct SQL insert exception; normal application status changes still use `transitionDonation()` |
 | Nov 8 | The generic `POST /api/donations/[id]/transition` route is ADMIN-only and accepts only `to`, `reason`, `volunteerId` and `eventNote`. It does not accept client-controlled QR tokens, distribution flags, metadata, notification recipients or screening ids. Donor and Volunteer lifecycle actions must use dedicated routes that compute server-side payloads and enforce ownership. `DRAFT` screening transitions use a null system actor; audit transition fields cannot be overwritten by metadata |
 | Nov 8 | Admin account review routes (`GET /api/admin/users`, `POST /api/admin/users/[id]/review`): each handler calls `requireRole(["ADMIN"])` itself before reading any input (the proxy alone is not enough). The reviewer id comes from the session and the target id from the URL, never the body. Errors: NOT_FOUND 404, TARGET_NOT_REVIEWABLE 403, INVALID_TRANSITION 409. Proof files are not served by these routes; a separate signed-URL route will do that. |
+| Nov 8 | Admin proof viewing (`GET /api/admin/users/[id]/documents/[documentId]/signed-url`): the handler calls `requireRole(["ADMIN"])` first, then returns a 300-second signed URL (`Cache-Control: no-store`) only for a non-deleted document that belongs to the user in the URL; a mismatched or unknown document is a 404. Each view writes an `audit_logs` row (`proof_document_viewed`, target the document, details only the user id; never the key or URL). |
 
 ## 10. Open questions
 
