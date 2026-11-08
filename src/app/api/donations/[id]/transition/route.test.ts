@@ -83,6 +83,7 @@ describe("POST /api/donations/[id]/transition", () => {
             context,
         );
         expect(response.status).toBe(200);
+        expect(mocks.requireRole).toHaveBeenCalledWith(["ADMIN"]);
         expect(mocks.transitionDonation).toHaveBeenCalledWith(
             { store: {} },
             "11111111-1111-4111-8111-111111111111",

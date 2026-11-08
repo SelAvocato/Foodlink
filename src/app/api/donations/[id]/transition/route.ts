@@ -13,12 +13,7 @@ export const runtime = "nodejs";
 const transitionBodySchema = z.strictObject({
     to: z.enum(Object.values(DonationStatus) as [string, ...string[]]),
     eventNote: z.string().trim().max(500).optional(),
-    hasDistribution: z.boolean().optional(),
-    metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
-    notificationUserIds: z.array(z.uuid()).max(50).optional(),
     reason: z.string().trim().max(500).optional(),
-    qrToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
-    screeningId: z.uuid().optional(),
     volunteerId: z.uuid().optional(),
 });
 
@@ -53,7 +48,7 @@ export async function POST(
     }
 
     try {
-        const actor = await requireRole(["ADMIN", "DONOR", "VOLUNTEER"]);
+        const actor = await requireRole(["ADMIN"]);
         const { to, ...payload } = parsed.data;
         const result = await transitionDonation(
             { store: prismaTransitionStore },

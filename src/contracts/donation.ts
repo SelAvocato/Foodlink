@@ -6,10 +6,8 @@ export type DonationActor = {
 };
 
 export type TransitionDonationPayload = {
-  hasDistribution?: boolean;
   eventNote?: string;
   metadata?: Record<string, string | number | boolean | null>;
-  notificationUserIds?: string[];
   reason?: string;
   qrToken?: string;
   screeningId?: string;
@@ -37,6 +35,7 @@ export type TransitionTx = {
     qrToken: string | null;
   }): Promise<boolean>;
   getActiveVolunteer(id: string): Promise<{ id: string; status: "ACTIVE"; role: "VOLUNTEER" } | null>;
+  hasDistribution(donationId: string): Promise<boolean>;
   insertAssignment(input: { donationId: string; volunteerId: string; assignedById: string; assignedAt: Date }): Promise<void>;
   insertExit(input: { donationId: string; status: DonationStatus; actorId: string | null; actorRole: Role | null; reason: string | null; screeningId?: string }): Promise<void>;
   insertTracking(input: { donationId: string; from: DonationStatus; to: DonationStatus; actorId: string | null; note?: string; metadata: Record<string, string | number | boolean | null> }): Promise<void>;

@@ -16,6 +16,8 @@ class FakeStore implements TransitionStore {
     currentVolunteerId: string | null;
   } | null = null;
   activeVolunteers = new Set<string>();
+  distributionCount = 0;
+  forceUpdateFailure = false;
   updates: unknown[] = [];
   assignments: unknown[] = [];
   exits: unknown[] = [];
@@ -27,6 +29,7 @@ class FakeStore implements TransitionStore {
     return work({
       getDonation: async () => this.donation,
       updateDonation: async (input) => {
+        if (this.forceUpdateFailure) return false;
         if (!this.donation || this.donation.status !== input.from) return false;
         this.donation = { ...this.donation, status: input.to };
         this.updates.push(input);
@@ -34,6 +37,7 @@ class FakeStore implements TransitionStore {
       },
       getActiveVolunteer: async (id) =>
         this.activeVolunteers.has(id) ? { id, role: "VOLUNTEER", status: "ACTIVE" } : null,
+      hasDistribution: async () => this.distributionCount > 0,
       insertAssignment: async (row) => { this.assignments.push(row); },
       insertExit: async (row) => { this.exits.push(row); },
       insertTracking: async (row) => { this.tracking.push(row); },
@@ -74,6 +78,9 @@ describe("transitionDonation", () => {
     const fake = store("POSTED");
     await transitionDonation({ store: fake }, "donation-1", "ACCEPTED", admin);
     expect(fake.updates[0]).toMatchObject({ actorId: "admin-1" });
+    const expired = store("POSTED", new Date(Date.now() - 1_000));
+    await expect(transitionDonation({ store: expired }, "donation-1", "ACCEPTED", admin))
+      .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
   });
 
   it("creates an assignment only for an active volunteer", async () => {
@@ -106,5 +113,39 @@ describe("transitionDonation", () => {
     await expect(
       transitionDonation({ store: fake }, "donation-1", "EXPIRED", null),
     ).resolves.toEqual({ from: "POSTED", to: "EXPIRED" });
+  });
+
+  it("allows the screening system to move a draft to SCREENED or REJECTED", async () => {
+    await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "SCREENED", null))
+      .resolves.toEqual({ from: "DRAFT", to: "SCREENED" });
+    await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "REJECTED", null))
+      .resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
+  });
+
+  it("requires a distribution row before closing", async () => {
+    const fake = store("DELIVERED");
+    fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    fake.distributionCount = 1;
+    await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
+      .resolves.toEqual({ from: "DELIVERED", to: "CLOSED" });
+  });
+
+  it("preserves audit transition fields over metadata", async () => {
+    const fake = store("POSTED");
+    await transitionDonation({ store: fake }, "donation-1", "DECLINED", admin, {
+      reason: "Unsafe food",
+      metadata: { from_status: "tampered", to_status: "tampered" },
+    });
+    expect(fake.audits[0]).toMatchObject({ details: { from_status: "POSTED", to_status: "DECLINED" } });
+  });
+
+  it("reports a race when the conditional update changes no rows", async () => {
+    const fake = store("POSTED");
+    fake.forceUpdateFailure = true;
+    await expect(transitionDonation({ store: fake }, "donation-1", "DECLINED", admin, { reason: "Unsafe food" }))
+      .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+    expect(fake.exits).toHaveLength(0);
   });
 });
