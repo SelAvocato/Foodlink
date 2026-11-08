@@ -36,6 +36,7 @@ export type TransitionTx = {
   }): Promise<boolean>;
   getActiveVolunteer(id: string): Promise<{ id: string; status: "ACTIVE"; role: "VOLUNTEER" } | null>;
   hasDistribution(donationId: string): Promise<boolean>;
+  getCompletionTotals(donationId: string): Promise<{ portions: number; distributed: number; unusable: number }>;
   insertAssignment(input: { donationId: string; volunteerId: string; assignedById: string; assignedAt: Date }): Promise<void>;
   insertExit(input: { donationId: string; status: DonationStatus; actorId: string | null; actorRole: Role | null; reason: string | null; screeningId?: string }): Promise<void>;
   insertTracking(input: { donationId: string; from: DonationStatus; to: DonationStatus; actorId: string | null; note?: string; metadata: Record<string, string | number | boolean | null> }): Promise<void>;
