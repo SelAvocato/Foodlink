@@ -3,7 +3,7 @@
 Living notes for teammates and AI tools. Read this before making changes.
 Keep it short. When a PR changes a decision, a rule or a gotcha below, update this file in the same PR.
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 ## 1. What FoodLink is
 
@@ -71,7 +71,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 **Privacy and security:**
 - Data Privacy Act (RA 10173): record consent with a timestamp, show contact details only to users involved in a donation, never store names of individual beneficiaries (distribution reports show places and groups served only), no identifiable faces in photos
-- Role checks happen in `proxy.ts` and again in every API handler (`requireRole(...)` plus an ownership check). The role comes from the verified JWT, never the request body
+- Role checks happen in every API handler (`requireRole(...)` plus an ownership check); `proxy.ts` is meant to add a coarse first gate but is not active yet (see the `proxy.ts` gotcha in section 8). The role comes from the verified JWT, never the request body
 - Zod validation on every request, unknown fields rejected, free text stored as plain text
 - Login uses Auth.js credentials with JWT sessions. Unknown users and incorrect passwords receive `Invalid username or password`; PENDING, REJECTED and SUSPENDED users receive their named account status. Login failures and successes are written to append-only `audit_logs` without passwords, email addresses or raw IP addresses
 - Login lockout is progressive and non-permanent: the fifth consecutive failed password attempt locks the account for 15 minutes, the sixth for 30 minutes, and the seventh or later for 60 minutes. A successful login resets the counter and lock
@@ -104,7 +104,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 
 - `.gitignore` ignores `.env*` but allows `.env.example`
 - Vercel Hobby cron jobs run at most once per day. The PDF's 15-minute expiry job needs another runner (a scheduled GitHub Actions workflow calling a secured endpoint, or expire on read plus a daily sweep)
-- JWT sessions keep a suspended user signed in until the token expires. Re-check account status in `proxy.ts` or `requireRole()`
+- JWT sessions keep a suspended user signed in until the token expires. Re-check account status in \requireRole()` (and in `proxy.ts` once it runs)`.
 - The Tailwind setup uses a custom Turbopack loader in `next.config.ts`. If styles break, switch to the documented `@tailwindcss/postcss` setup
 - GitHub repo invitations expire. Resend from Settings, Collaborators if a teammate cannot see the repo
 - `next-auth` v5 is still on the `beta` tag (5.0.0-beta.32 on 5 Nov 2026) and the `latest` tag is v4. Pin an exact version when installing
@@ -114,6 +114,8 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Vercel Functions reject request bodies over 4.5 MB before the code runs (413). The signup routes therefore accept proofs up to 4 MB, even though the shared image rule (`src/contracts/image.ts`) allows 5 MB, so the browser must compress photos before sending. If 4 MB proves too small, upload proofs directly to Supabase with a signed upload URL instead
 - Account review sends no email or in-app notification yet. The System PDF says the user is emailed on approval and rejection; add the email after the transaction commits once the email provider is chosen
 - There is no HTML-stripping sanitizer yet. Free text such as the food name and description is stored as trimmed plain text, while the System PDF asks for HTML to be stripped. Add it in the security pass for every free-text field
+- Admin list queries never select `storage_key` or `original_filename`, and the responses are built from an explicit allow-list, so neither value can reach an Admin list response
+- `proxy.ts` is at the repo root but the app is in `src/app`; verified on Nov 8 that it does not run (an unauthenticated `GET /api/admin/users` returns the handler's 401 JSON, not a redirect, and the build lists no proxy). Until it moves to `src/proxy.ts`, the handlers' `requireRole()` is the only guard
 
 ## 9. Decision log
 
@@ -133,9 +135,10 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 6 | Pull requests are merged with merge commits, not squash |
 | Nov 7 | Uploads go to the private Supabase Storage bucket `foodlink-uploads` with the server-side secret key, wired in `src/server/storage.ts`. Photos are compressed in the browser first because Vercel Functions reject request bodies over 4.5 MB |
 | Nov 7 | Volunteer registration reuses the shared flow in `src/server/registration/register-account.ts`; Donor and Volunteer differ only in the user row and the proof type. The Volunteer's proof is saved as `VALID_ID`. The map pin is optional and is saved only when both coordinates are sent. `availability` is saved for Volunteers only |
-| Nov 7 | Account review is one function (`src/server/review/review-account.ts`) with an injected store. In one transaction it changes the status with a conditional update, marks the user's pending proof documents APPROVED (approve) or REJECTED (reject, with the reason as review note), and writes one `user_reviews` row and one `audit_logs` row (the reason text is not copied into the audit details). Suspend and reactivate leave documents alone. Only Donor and Volunteer accounts can be reviewed, and nobody can review themselves. The route will call it behind `requireRole("ADMIN")` once that exists |
+| Nov 7 | Account review is one function (`src/server/review/review-account.ts`) with an injected store. In one transaction it changes the status with a conditional update, marks the user's pending proof documents APPROVED (approve) or REJECTED (reject, with the reason as review note), and writes one `user_reviews` row and one `audit_logs` row (the reason text is not copied into the audit details). Suspend and reactivate leave documents alone. Only Donor and Volunteer accounts can be reviewed, and nobody can review themselves. The admin route calls it behind `requireRole(["ADMIN"])` (Nov 8) |
 | Nov 7 | Donation drafts are inserted directly with the database default status DRAFT (`src/server/drafts/`); creating, editing or discarding a draft is not a status change, so it writes no tracking event or audit row and `transitionDonation()` is not involved. The screening flow advances an existing draft from DRAFT to SCREENED through `transitionDonation()`. A Donor can edit a draft in DRAFT or SCREENED, change its category only in DRAFT, and discard it in either (sets `deleted_at`). Individual Donors can only use categories with `allowed_for_individuals`. The API uses category, allergen and tag codes, not numeric ids. Pickup address and window are saved at posting (B10) |
-| Nov 8 | A4 authorization is implemented in `src/server/auth/require-role.ts` and `proxy.ts`. `proxy.ts` gates protected admin and volunteer paths using the verified JWT; every handler must also call `requireRole()`, which re-reads the user from the database and rejects deleted, PENDING, REJECTED or SUSPENDED accounts before checking the allowed role. B3 seed data remains a development-only direct SQL insert exception: it may set demo donation statuses directly, but normal application status changes still use `transitionDonation()` |
+| Nov 8 | A4 authorization is implemented in `src/server/auth/require-role.ts` and `proxy.ts`. `proxy.ts` is meant to gate protected admin and volunteer paths using the verified JWT but is not active yet (see the `proxy.ts` gotcha in section 8); every handler must also call `requireRole()`, which re-reads the user from the database and rejects deleted, PENDING, REJECTED or SUSPENDED accounts before checking the allowed role. B3 seed data remains a development-only direct SQL insert exception: it may set demo donation statuses directly, but normal application status changes still use `transitionDonation()` |
+| Nov 8 | Admin account review routes (`GET /api/admin/users`, `POST /api/admin/users/[id]/review`): each handler calls `requireRole(["ADMIN"])` itself before reading any input (the proxy alone is not enough). The reviewer id comes from the session and the target id from the URL, never the body. Errors: NOT_FOUND 404, TARGET_NOT_REVIEWABLE 403, INVALID_TRANSITION 409. Proof files are not served by these routes; a separate signed-URL route will do that. |
 
 ## 10. Open questions
 
