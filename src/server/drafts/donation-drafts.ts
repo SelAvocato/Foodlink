@@ -31,10 +31,46 @@ export interface DraftTx {
   softDeleteDraft(id: string, donorId: string, allowedStatuses: readonly DonationStatus[]): Promise<boolean>;
 }
 
+/** A row as the list query returns it: donorId and deletedAt exist for filtering only. */
+export interface DraftListRow {
+  id: string;
+  donorId: string;
+  foodName: string;
+  description: string | null;
+  portions: number;
+  status: DonationStatus;
+  foodCategoryCode: string;
+  allergenCodes: string[];
+  dietaryTagCodes: string[];
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** The documented list shape: an allow-list, built from the row, never the row itself. */
+export interface DraftListItem {
+  id: string;
+  foodName: string;
+  description: string | null;
+  portions: number;
+  status: DonationStatus;
+  foodCategoryCode: string;
+  allergenCodes: string[];
+  dietaryTagCodes: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface DraftStore {
   /** Runs `work` atomically; rolls back if `work` throws. */
   transaction<T>(work: (tx: DraftTx) => Promise<T>): Promise<T>;
+  /** Plain read outside any transaction: the rows the caller is allowed to see. */
+  listDrafts(donorId: string): Promise<DraftListRow[]>;
 }
+
+/** The Drafts tab never shows more than one screenful. */
+export const DRAFT_LIST_LIMIT = 50;
+const LISTABLE_STATUSES: readonly DonationStatus[] = [DonationStatus.DRAFT, DonationStatus.SCREENED];
 
 export type CreateDraftResult =
   | { ok: true; donationId: string }
@@ -200,4 +236,38 @@ export async function discardDraft(
     if (!discarded) return { ok: false, error: "NOT_EDITABLE" };
     return { ok: true };
   });
+}
+
+/**
+ * The donor's live drafts (DRAFT or SCREENED, not discarded), newest updated_at
+ * first, at most DRAFT_LIST_LIMIT rows. Every filter is re-checked here so a
+ * sloppy store still cannot leak another donor's rows.
+ */
+export async function listDrafts(
+  deps: { store: DraftStore },
+  args: { donorId: string },
+): Promise<DraftListItem[]> {
+  const rows = await deps.store.listDrafts(args.donorId);
+
+  return rows
+    .filter(
+      (row) =>
+        row.donorId === args.donorId &&
+        row.deletedAt === null &&
+        LISTABLE_STATUSES.includes(row.status),
+    )
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    .slice(0, DRAFT_LIST_LIMIT)
+    .map((row) => ({
+      id: row.id,
+      foodName: row.foodName,
+      description: row.description,
+      portions: row.portions,
+      status: row.status,
+      foodCategoryCode: row.foodCategoryCode,
+      allergenCodes: [...row.allergenCodes],
+      dietaryTagCodes: [...row.dietaryTagCodes],
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
 }
