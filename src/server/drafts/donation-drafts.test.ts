@@ -6,7 +6,16 @@ import {
   type CreateDraftInput,
   type UpdateDraftInput,
 } from "@/contracts/donation-draft";
-import { createDraft, discardDraft, updateDraft, type DraftStore, type DraftTx } from "./donation-drafts";
+import {
+  createDraft,
+  discardDraft,
+  DRAFT_LIST_LIMIT,
+  listDrafts,
+  updateDraft,
+  type DraftListRow,
+  type DraftStore,
+  type DraftTx,
+} from "./donation-drafts";
 
 type InsertRow = Parameters<DraftTx["insertDraft"]>[0];
 type SeedUser = { id: string; role: Role; status: AccountStatus; donorType: DonorType | null; deleted?: boolean };
@@ -18,6 +27,8 @@ type StoredDraft = InsertRow & {
   deletedAt: Date | null;
   allergenIds: number[];
   tagIds: number[];
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 /**
@@ -34,6 +45,7 @@ class FakeDraftStore implements DraftStore {
   insertedRows: InsertRow[] = [];
   statusWrites: string[] = [];
   getDraftCalls = 0;
+  transactionCalls = 0;
   writesBeforeGetDraft = 0;
   updateRace = false;
   mmBoom = false;
@@ -50,6 +62,7 @@ class FakeDraftStore implements DraftStore {
   }
 
   async transaction<T>(work: (tx: DraftTx) => Promise<T>): Promise<T> {
+    this.transactionCalls += 1;
     const snapshot = {
       users: [...this.users],
       categories: [...this.categories],
@@ -80,7 +93,16 @@ class FakeDraftStore implements DraftStore {
           this.recordWrite();
           this.insertedRows.push(row);
           const id = this.nextId();
-          this.drafts.push({ ...row, id, status: "DRAFT", deletedAt: null, allergenIds: [], tagIds: [] });
+          this.drafts.push({
+            ...row,
+            id,
+            status: "DRAFT",
+            deletedAt: null,
+            allergenIds: [],
+            tagIds: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
           return { id };
         },
         getDraft: async (id) => {
@@ -154,6 +176,31 @@ class FakeDraftStore implements DraftStore {
       throw error;
     }
   }
+
+  /** Like FakePendingUsersStore: returns every row, so the service proves the filtering. */
+  async listDrafts(): Promise<DraftListRow[]> {
+    return this.drafts.map((draft) => ({
+      id: draft.id,
+      donorId: draft.donorId,
+      foodName: draft.foodName,
+      description: draft.description,
+      portions: draft.portions,
+      status: draft.status,
+      foodCategoryCode:
+        this.categories.find((candidate) => candidate.id === draft.foodCategoryId)?.code ?? "NO_CATEGORY",
+      allergenCodes: draft.allergenIds.flatMap((id) => {
+        const row = this.allergens.find((candidate) => candidate.id === id);
+        return row ? [row.code] : [];
+      }),
+      dietaryTagCodes: draft.tagIds.flatMap((id) => {
+        const row = this.tags.find((candidate) => candidate.id === id);
+        return row ? [row.code] : [];
+      }),
+      deletedAt: draft.deletedAt,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt,
+    }));
+  }
 }
 
 const DONOR_ID = "donor-1";
@@ -200,6 +247,8 @@ function seedDraft(store: FakeDraftStore, overrides: Partial<StoredDraft> = {}):
     deletedAt: null,
     allergenIds: [],
     tagIds: [],
+    createdAt: new Date("2026-11-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-11-01T00:00:00.000Z"),
     ...overrides,
   };
   store.drafts.push(draft);
@@ -575,6 +624,103 @@ describe("discardDraft", () => {
     const result = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
     expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
     expect(store.drafts[0]?.deletedAt).toBeNull();
+  });
+});
+
+describe("listDrafts", () => {
+  it("returns only the caller's drafts, newest updated_at first", async () => {
+    const store = makeStore();
+    seedDraft(store, { id: "draft-old", updatedAt: new Date("2026-11-01T00:00:00.000Z") });
+    seedDraft(store, { id: "draft-new", updatedAt: new Date("2026-11-05T00:00:00.000Z") });
+    seedDraft(store, {
+      id: "draft-other",
+      donorId: OTHER_DONOR_ID,
+      updatedAt: new Date("2026-11-07T00:00:00.000Z"),
+    });
+
+    const drafts = await listDrafts({ store }, { donorId: DONOR_ID });
+
+    expect(drafts.map((draft) => draft.id)).toEqual(["draft-new", "draft-old"]);
+  });
+
+  it("returns only DRAFT and SCREENED rows", async () => {
+    const store = makeStore();
+    seedDraft(store, { id: "draft-a", status: "DRAFT" });
+    seedDraft(store, { id: "draft-b", status: "SCREENED" });
+    seedDraft(store, { id: "draft-c", status: "POSTED" });
+    seedDraft(store, { id: "draft-d", status: "CLOSED" });
+
+    const drafts = await listDrafts({ store }, { donorId: DONOR_ID });
+
+    expect(drafts.map((draft) => draft.id)).toEqual(["draft-a", "draft-b"]);
+  });
+
+  it("excludes a discarded draft", async () => {
+    const store = makeStore();
+    seedDraft(store, { id: "draft-gone", deletedAt: new Date("2026-11-02T00:00:00.000Z") });
+
+    expect(await listDrafts({ store }, { donorId: DONOR_ID })).toEqual([]);
+  });
+
+  it("returns an empty list when the donor has no drafts", async () => {
+    const store = makeStore();
+
+    expect(await listDrafts({ store }, { donorId: DONOR_ID })).toEqual([]);
+  });
+
+  it("keeps at most 50 rows, newest first", async () => {
+    const store = makeStore();
+    const base = new Date("2026-11-01T00:00:00.000Z").getTime();
+    for (let i = 1; i <= 55; i += 1) {
+      seedDraft(store, { id: `draft-${i}`, updatedAt: new Date(base + i * 60_000) });
+    }
+
+    const drafts = await listDrafts({ store }, { donorId: DONOR_ID });
+
+    expect(drafts).toHaveLength(DRAFT_LIST_LIMIT);
+    expect(drafts[0]?.id).toBe("draft-55");
+    expect(drafts[DRAFT_LIST_LIMIT - 1]?.id).toBe("draft-6");
+    expect(drafts.map((draft) => draft.id)).not.toContain("draft-5");
+  });
+
+  it("maps a row to the documented shape and nothing else", async () => {
+    const store = makeStore();
+    seedDraft(store, {
+      id: "draft-1",
+      description: "From today's lunch service",
+      allergenIds: [11],
+      tagIds: [21],
+      updatedAt: new Date("2026-11-05T00:00:00.000Z"),
+    });
+
+    const drafts = await listDrafts({ store }, { donorId: DONOR_ID });
+
+    expect(drafts).toEqual([
+      {
+        id: "draft-1",
+        foodName: "Chicken adobo",
+        description: "From today's lunch service",
+        portions: 25,
+        status: "DRAFT",
+        foodCategoryCode: "COOKED_MEALS",
+        allergenCodes: ["PEANUTS"],
+        dietaryTagCodes: ["HALAL"],
+        createdAt: new Date("2026-11-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-11-05T00:00:00.000Z"),
+      },
+    ]);
+    expect(drafts[0]).not.toHaveProperty("donorId");
+    expect(drafts[0]).not.toHaveProperty("deletedAt");
+    expect(drafts[0]).not.toHaveProperty("foodCategoryId");
+  });
+
+  it("reads without opening a transaction", async () => {
+    const store = makeStore();
+    seedDraft(store);
+
+    await listDrafts({ store }, { donorId: DONOR_ID });
+
+    expect(store.transactionCalls).toBe(0);
   });
 });
 

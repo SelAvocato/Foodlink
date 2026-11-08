@@ -1,6 +1,6 @@
 import { DonationStatus } from "@/contracts/enums";
 import { prisma } from "@/server/db";
-import type { DraftStore, DraftTx } from "./donation-drafts";
+import { DRAFT_LIST_LIMIT, type DraftListRow, type DraftStore, type DraftTx } from "./donation-drafts";
 
 type DraftLockRow = { donor_id: string; status: string; food_category_id: number };
 
@@ -120,5 +120,48 @@ function createTransactionAdapter(tx: typeof prisma): DraftTx {
 export const prismaDraftStore: DraftStore = {
   async transaction(work) {
     return prisma.$transaction(async (tx) => work(createTransactionAdapter(tx as typeof prisma)));
+  },
+  async listDrafts(donorId) {
+    // Plain read, no transaction. Only the columns the list returns or filters on:
+    // no qr_token, no pickup fields, nothing from users. deleted_at is selected
+    // because the service re-checks soft deletion on its side.
+    const donations = await prisma.donations.findMany({
+      where: {
+        donor_id: donorId,
+        status: { in: [DonationStatus.DRAFT, DonationStatus.SCREENED] },
+        deleted_at: null,
+      },
+      orderBy: { updated_at: "desc" },
+      take: DRAFT_LIST_LIMIT,
+      select: {
+        id: true,
+        donor_id: true,
+        food_name: true,
+        description: true,
+        portions: true,
+        status: true,
+        deleted_at: true,
+        created_at: true,
+        updated_at: true,
+        food_categories: { select: { code: true } },
+        donation_allergens: { select: { allergens: { select: { code: true } } } },
+        donation_dietary_tags: { select: { dietary_tags: { select: { code: true } } } },
+      },
+    });
+
+    return donations.map((donation): DraftListRow => ({
+      id: donation.id,
+      donorId: donation.donor_id,
+      foodName: donation.food_name,
+      description: donation.description,
+      portions: donation.portions,
+      status: donation.status,
+      foodCategoryCode: donation.food_categories.code,
+      allergenCodes: donation.donation_allergens.map((row) => row.allergens.code),
+      dietaryTagCodes: donation.donation_dietary_tags.map((row) => row.dietary_tags.code),
+      deletedAt: donation.deleted_at,
+      createdAt: donation.created_at,
+      updatedAt: donation.updated_at,
+    }));
   },
 };
