@@ -8,9 +8,6 @@ export interface PendingUserDocumentRow {
   sizeBytes: number;
   createdAt: Date;
   deletedAt: Date | null;
-  /** Real database columns. The service drops both before any response is built. */
-  storageKey: string;
-  originalFilename: string;
 }
 
 export interface PendingUserRow {

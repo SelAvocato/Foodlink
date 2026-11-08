@@ -18,8 +18,6 @@ function document(overrides: Partial<PendingUserDocumentFields> = {}): PendingUs
     sizeBytes: 1024,
     createdAt: new Date("2026-11-01T00:00:00.000Z"),
     deletedAt: null,
-    storageKey: "proofs/secret-key.jpg",
-    originalFilename: "private-name.jpg",
     ...overrides,
   };
 }
@@ -110,31 +108,42 @@ describe("listPendingUsers", () => {
     expect(users[1]).toMatchObject({ donorType: null, businessName: null });
   });
 
-  it("builds response objects without storage_key, original_filename or contact data", async () => {
+  it("builds response objects from an allow-list even if a store row carries extra fields", async () => {
     const store = new FakePendingUsersStore();
-    store.rows = [user()];
+    const leakyDocument = Object.assign(document(), {
+      storageKey: "proofs/secret-key.jpg",
+      originalFilename: "private-name.jpg",
+    });
+    const leakyUser = Object.assign(user({ documents: [leakyDocument] }), {
+      passwordHash: "secret-hash",
+      contactNumber: "0000",
+    });
+    store.rows = [leakyUser];
 
     const users = await listPendingUsers({ store }, { limit: 50 });
-    const serialized = JSON.stringify(users);
 
-    for (const row of users) {
-      expect(row).not.toHaveProperty("storageKey");
-      expect(row).not.toHaveProperty("originalFilename");
-      expect(row).not.toHaveProperty("storage_key");
-      expect(row).not.toHaveProperty("original_filename");
-      expect(row).not.toHaveProperty("contactNumber");
-      expect(row).not.toHaveProperty("status");
-      expect(row).not.toHaveProperty("deletedAt");
-      for (const doc of row.documents) {
-        expect(doc).not.toHaveProperty("storageKey");
-        expect(doc).not.toHaveProperty("originalFilename");
-        expect(doc).not.toHaveProperty("storage_key");
-        expect(doc).not.toHaveProperty("original_filename");
-        expect(doc).not.toHaveProperty("deletedAt");
-      }
-    }
+    expect(Object.keys(users[0] ?? {}).sort()).toEqual([
+      "businessName",
+      "createdAt",
+      "documents",
+      "donorType",
+      "email",
+      "fullName",
+      "id",
+      "role",
+    ]);
+    expect(Object.keys(users[0]?.documents[0] ?? {}).sort()).toEqual([
+      "createdAt",
+      "id",
+      "mimeType",
+      "sizeBytes",
+      "status",
+      "type",
+    ]);
+    const serialized = JSON.stringify(users);
     expect(serialized).not.toContain("secret-key");
     expect(serialized).not.toContain("private-name");
+    expect(serialized).not.toContain("secret-hash");
   });
 
   it("returns an empty list when the store has nothing", async () => {

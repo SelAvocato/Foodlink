@@ -27,8 +27,6 @@ export const prismaPendingUsersStore: PendingUsersStore = {
             size_bytes: true,
             created_at: true,
             deleted_at: true,
-            storage_key: true,
-            original_filename: true,
             document_types: { select: { code: true } },
           },
         },
@@ -53,8 +51,6 @@ export const prismaPendingUsersStore: PendingUsersStore = {
         sizeBytes: Number(document.size_bytes),
         createdAt: document.created_at,
         deletedAt: document.deleted_at,
-        storageKey: document.storage_key,
-        originalFilename: document.original_filename,
       })),
     }));
   },
