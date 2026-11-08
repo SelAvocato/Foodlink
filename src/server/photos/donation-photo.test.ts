@@ -234,19 +234,52 @@ describe("saveFoodPhoto", () => {
     const { store, storage } = makeDeps();
     store.seedDonation(DONATION_ID, draftDonation());
     store.insertError = new Error("insert exploded");
-    storage.removeError = new Error("remove exploded");
+    // A storage or Prisma error can carry the key and the signed URL in its message.
+    const cleanupMessage = `remove exploded for ${NEW_KEY} at ${SIGNED_URL}`;
+    storage.removeError = new Error(cleanupMessage);
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(
-      saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE }),
-    ).rejects.toThrow("insert exploded");
+    try {
+      await expect(
+        saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE }),
+      ).rejects.toThrow("insert exploded");
 
-    expect(consoleError).toHaveBeenCalledTimes(1);
-    const [label, details] = consoleError.mock.calls[0];
-    expect(label).toBe("saveFoodPhoto: failed to remove the uploaded photo");
-    expect(Object.keys(details as object)).toEqual(["cleanupError"]);
-    expect(JSON.stringify(details)).not.toContain(NEW_KEY);
-    expect(storage.removed).toEqual([]);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [label, details] = consoleError.mock.calls[0];
+      expect(label).toBe("saveFoodPhoto: failed to remove the uploaded photo");
+      expect(Object.keys(details as object)).toEqual(["errorName"]);
+      expect(details).toEqual({ errorName: "Error" });
+
+      const logged = JSON.stringify(consoleError.mock.calls);
+      expect(logged).not.toContain(NEW_KEY);
+      expect(logged).not.toContain(SIGNED_URL);
+      expect(logged).not.toContain(cleanupMessage);
+      expect(storage.removed).toEqual([]);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("logs the error name and code of a cleanup failure, without the key", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.insertError = new Error("insert exploded");
+    storage.removeError = Object.assign(new Error(`remove exploded for ${NEW_KEY}`), { code: "P2025" });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await expect(
+        saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE }),
+      ).rejects.toThrow("insert exploded");
+
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [, details] = consoleError.mock.calls[0];
+      expect(Object.keys(details as object)).toEqual(["errorName", "errorCode"]);
+      expect(details).toEqual({ errorName: "Error", errorCode: "P2025" });
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(NEW_KEY);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("writes the caller's donor id on the new row", async () => {
