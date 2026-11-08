@@ -119,6 +119,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - Proof files are never served through the app: Admins get short-lived signed URLs only, the storage key and original file name never leave the server, and every view is audited.
 - updateDraft and discardDraft do not re-check the donor's account status; the route's requireRole() does. A suspended donor with a still-valid JWT is only stopped there.
 - The donor sets the pickup window after the checklist (wizard step 3), so pickup_end is often null when the checklist is saved. The database re-checks consume-by against the pickup end when the window is set (trigger donations_recheck_checklist); the post step must map that error to a clear message.
+- A retake soft-deletes the old donation_images row but leaves its file in the bucket until a cleanup job exists (retention is still an open question). The screening task must decide what a retake means while a REVIEW verdict is pending, because the photo is locked once the donation is SCREENED.
 
 ## 9. Decision log
 
@@ -146,6 +147,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 8 | Admin proof viewing (`GET /api/admin/users/[id]/documents/[documentId]/signed-url`): the handler calls `requireRole(["ADMIN"])` first, then returns a 300-second signed URL (`Cache-Control: no-store`) only for a non-deleted document that belongs to the user in the URL; a mismatched or unknown document is a 404. Each view writes an `audit_logs` row (`proof_document_viewed`, target the document, details only the user id; never the key or URL). |
 | Nov 8 | Donor draft routes live under /api/donor/drafts (POST create, GET list, PATCH and DELETE on [id]). The list returns DRAFT and SCREENED donations only, newest first, max 50. A malformed draft id returns 400 INVALID_REQUEST; a missing or foreign draft id returns 404 NOT_FOUND. |
 | Nov 8 | Donation safety checklist routes live at /api/donor/drafts/[id]/checklist (PUT saves the whole checklist, GET reads it). Saving progress is allowed while the donation is DRAFT or SCREENED; completed_at is set by the server only when every rule for the category passes, otherwise it stays null. Fields the category does not use (prepared time, storage condition and temperature) are stored as null. The rules mirror fn_assert_checklist_rules; the database remains the last line of defence. |
+| Nov 8 | Donor food photo routes live at /api/donor/drafts/[id]/photo (POST uploads or retakes, GET returns a 300-second signed URL for the donor's own photo, no audit row). One active FOOD_PHOTO per donation (unique partial index): a retake soft-deletes the old row and inserts the new one in one locked transaction. Upload and retake are allowed only while the donation is DRAFT. The file is uploaded before the database write and removed again if the write is refused or fails. The upload does not run screening and does not change the donation status. |
 
 ## 10. Open questions
 
