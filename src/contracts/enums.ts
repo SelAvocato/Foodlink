@@ -27,6 +27,14 @@ export const ScreeningVerdict = {
 } as const;
 export type ScreeningVerdict = (typeof ScreeningVerdict)[keyof typeof ScreeningVerdict];
 
+export const StorageCondition = {
+  ROOM_TEMPERATURE: "ROOM_TEMPERATURE",
+  HOT_HELD: "HOT_HELD",
+  REFRIGERATED: "REFRIGERATED",
+  FROZEN: "FROZEN",
+} as const;
+export type StorageCondition = (typeof StorageCondition)[keyof typeof StorageCondition];
+
 export const DonationStatus = {
   DRAFT: "DRAFT",
   SCREENED: "SCREENED",
