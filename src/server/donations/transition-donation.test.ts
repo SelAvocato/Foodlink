@@ -17,6 +17,7 @@ class FakeStore implements TransitionStore {
   } | null = null;
   activeVolunteers = new Set<string>();
   distributionCount = 0;
+  completionTotals = { portions: 10, distributed: 10, unusable: 0 };
   forceUpdateFailure = false;
   updates: unknown[] = [];
   assignments: unknown[] = [];
@@ -38,6 +39,7 @@ class FakeStore implements TransitionStore {
       getActiveVolunteer: async (id) =>
         this.activeVolunteers.has(id) ? { id, role: "VOLUNTEER", status: "ACTIVE" } : null,
       hasDistribution: async () => this.distributionCount > 0,
+      getCompletionTotals: async () => this.completionTotals,
       insertAssignment: async (row) => { this.assignments.push(row); },
       insertExit: async (row) => { this.exits.push(row); },
       insertTracking: async (row) => { this.tracking.push(row); },
@@ -122,6 +124,13 @@ describe("transitionDonation", () => {
       .resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
   });
 
+  it("allows an Admin to pass or reject a draft screening", async () => {
+    await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "SCREENED", admin))
+      .resolves.toEqual({ from: "DRAFT", to: "SCREENED" });
+    await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "REJECTED", admin))
+      .resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
+  });
+
   it("requires a distribution row before closing", async () => {
     const fake = store("DELIVERED");
     fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
@@ -130,6 +139,12 @@ describe("transitionDonation", () => {
     fake.distributionCount = 1;
     await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
       .resolves.toEqual({ from: "DELIVERED", to: "CLOSED" });
+    const mismatch = store("DELIVERED");
+    mismatch.donation = { ...mismatch.donation!, currentVolunteerId: "volunteer-1" };
+    mismatch.distributionCount = 1;
+    mismatch.completionTotals = { portions: 10, distributed: 9, unusable: 0 };
+    await expect(transitionDonation({ store: mismatch }, "donation-1", "CLOSED", volunteer))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
   });
 
   it("preserves audit transition fields over metadata", async () => {

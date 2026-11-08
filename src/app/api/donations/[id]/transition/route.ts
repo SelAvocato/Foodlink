@@ -25,6 +25,17 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
 ) {
+    let actor: Awaited<ReturnType<typeof requireRole>>;
+    try {
+        actor = await requireRole(["ADMIN"]);
+    } catch (error) {
+        if (error instanceof AuthorizationError) {
+            return errorResponse(error.code, error.message, error.code === "UNAUTHENTICATED" ? 401 : 403);
+        }
+        console.error("Donation transition authorization failed", { error });
+        return errorResponse("INTERNAL_ERROR", "Authorization could not be verified.", 500);
+    }
+
     const { id } = await context.params;
     if (!z.uuid().safeParse(id).success) {
         return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
@@ -48,7 +59,6 @@ export async function POST(
     }
 
     try {
-        const actor = await requireRole(["ADMIN"]);
         const { to, ...payload } = parsed.data;
         const result = await transitionDonation(
             { store: prismaTransitionStore },
