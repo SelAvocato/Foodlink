@@ -241,7 +241,7 @@ describe("POST /api/donor/drafts/[id]/photo", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Photo upload failed");
-    expect(Object.keys(details as object).sort()).toEqual(["donationId", "error"]);
+    expect(Object.keys(details as object).sort()).toEqual(["donationId", "errorName"]);
     expect((details as { donationId: string }).donationId).toBe(VALID_ID);
     consoleError.mockRestore();
   });
@@ -338,7 +338,7 @@ describe("GET /api/donor/drafts/[id]/photo", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Photo URL failed");
-    expect(Object.keys(details as object).sort()).toEqual(["donationId", "error"]);
+    expect(Object.keys(details as object).sort()).toEqual(["donationId", "errorName"]);
     consoleError.mockRestore();
   });
 });
