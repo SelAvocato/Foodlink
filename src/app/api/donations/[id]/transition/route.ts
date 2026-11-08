@@ -25,30 +25,28 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
 ) {
-    const { id } = await context.params;
-    if (!z.uuid().safeParse(id).success) {
-        return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
-    }
-
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return errorResponse("INVALID_REQUEST", "Send a valid JSON request body.", 400);
-    }
-
-    const parsed = transitionBodySchema.safeParse(body);
-    if (!parsed.success) {
-        return errorResponse(
-            "INVALID_REQUEST",
-            "The transition request is invalid.",
-            400,
-            z.flattenError(parsed.error),
-        );
-    }
-
     try {
         const actor = await requireRole(["ADMIN"]);
+        const { id } = await context.params;
+        if (!z.uuid().safeParse(id).success) {
+            return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
+        }
+
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return errorResponse("INVALID_REQUEST", "Send a valid JSON request body.", 400);
+        }
+        const parsed = transitionBodySchema.safeParse(body);
+        if (!parsed.success) {
+            return errorResponse(
+                "INVALID_REQUEST",
+                "The transition request is invalid.",
+                400,
+                z.flattenError(parsed.error),
+            );
+        }
         const { to, ...payload } = parsed.data;
         const result = await transitionDonation(
             { store: prismaTransitionStore },
@@ -70,7 +68,7 @@ export async function POST(
                 400;
             return errorResponse(error.code, error.message, status);
         }
-        console.error("Donation transition failed", { donationId: id, error });
+        console.error("Donation transition failed", { error });
         return errorResponse("INTERNAL_ERROR", "The donation transition could not be completed.", 500);
     }
 }
