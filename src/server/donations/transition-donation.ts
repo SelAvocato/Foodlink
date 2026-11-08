@@ -11,8 +11,8 @@ import type {
 import type { DonationStatus, Role } from "@/contracts/enums";
 
 const transitions: Record<DonationStatus, Partial<Record<DonationStatus, readonly Role[]>>> = {
-  DRAFT: { SCREENED: ["DONOR", "ADMIN"], REJECTED: ["ADMIN"] },
-  SCREENED: { POSTED: ["DONOR", "ADMIN"], REJECTED: ["ADMIN"] },
+  DRAFT: { SCREENED: [], REJECTED: [] },
+  SCREENED: { POSTED: ["DONOR"], REJECTED: [] },
   POSTED: { ACCEPTED: ["ADMIN"], DECLINED: ["ADMIN"], CANCELLED: ["DONOR", "ADMIN"], EXPIRED: [] },
   ACCEPTED: { ASSIGNED: ["ADMIN"], CANCELLED: ["DONOR", "ADMIN"], EXPIRED: [] },
   ASSIGNED: { PICKED_UP: ["VOLUNTEER"], REJECTED_AT_PICKUP: ["VOLUNTEER"], CANCELLED: ["ADMIN"], EXPIRED: [] },
@@ -57,7 +57,8 @@ export async function transitionDonation(
     const from = donation.status;
     const roles = transitions[from][to];
     if (!roles) throw new DonationTransitionError("INVALID_TRANSITION", `Cannot transition ${from} to ${to}`);
-    if (to !== "EXPIRED" && (!actor || !roles.includes(actor.role))) {
+    const systemScreening = !actor && from === "DRAFT" && (to === "SCREENED" || to === "REJECTED");
+    if (to !== "EXPIRED" && !systemScreening && (!actor || !roles.includes(actor.role))) {
       throw new DonationTransitionError("FORBIDDEN_ACTOR", "Actor cannot perform this transition");
     }
     if (to === "EXPIRED" && (!donation.pickupEnd || donation.pickupEnd > new Date())) {
@@ -75,7 +76,7 @@ export async function transitionDonation(
     if (to === "ASSIGNED" && !payload.volunteerId) {
       throw new DonationTransitionError("MISSING_PAYLOAD", "A volunteer is required when assigning");
     }
-    if (to === "CLOSED" && !payload.hasDistribution) {
+    if (to === "CLOSED" && !(await tx.hasDistribution(id))) {
       throw new DonationTransitionError("MISSING_PAYLOAD", "A distribution record is required when closing");
     }
     if (to === "ACCEPTED" && (!donation.pickupEnd || donation.pickupEnd <= new Date())) {
@@ -89,17 +90,20 @@ export async function transitionDonation(
     });
     if (!updated) throw new DonationTransitionError("INVALID_TRANSITION", "Donation changed before transition completed");
     if (to === "ASSIGNED") {
-      const volunteer = await tx.getActiveVolunteer(payload.volunteerId!);
+      if (!payload.volunteerId || !actor) {
+        throw new DonationTransitionError("MISSING_PAYLOAD", "A volunteer and actor are required when assigning");
+      }
+      const volunteer = await tx.getActiveVolunteer(payload.volunteerId);
       if (!volunteer) throw new DonationTransitionError("MISSING_PAYLOAD", "Volunteer must be ACTIVE");
-      await tx.insertAssignment({ donationId: id, volunteerId: volunteer.id, assignedById: actor!.id, assignedAt: now });
+      await tx.insertAssignment({ donationId: id, volunteerId: volunteer.id, assignedById: actor.id, assignedAt: now });
     }
     if (exits.has(to)) {
       await tx.insertExit({ donationId: id, status: to, actorId: actor?.id ?? null, actorRole: actor?.role ?? null, reason: payload.reason ?? null, screeningId: payload.screeningId });
     }
     await tx.insertTracking({ donationId: id, from, to, actorId: actor?.id ?? null, note: payload.eventNote, metadata: { ...(payload.metadata ?? {}), from_status: from, to_status: to } });
-    const recipients = [donation.donorId, ...(payload.notificationUserIds ?? [])].filter((userId) => userId !== actor?.id);
+    const recipients = [...new Set([donation.donorId])].filter((userId) => userId !== actor?.id);
     await tx.insertNotifications(recipients.map((userId) => ({ userId, type: `DONATION_${to}`, title: `Donation ${to.toLowerCase()}`, body: `Donation changed to ${to.toLowerCase()}.`, donationId: id })));
-    await tx.insertAudit({ actorId: actor?.id ?? null, targetId: id, details: { from_status: from, to_status: to, ...(payload.metadata ?? {}) } });
+    await tx.insertAudit({ actorId: actor?.id ?? null, targetId: id, details: { ...(payload.metadata ?? {}), from_status: from, to_status: to } });
     return { from, to };
   });
 }
@@ -126,6 +130,9 @@ export const prismaTransitionStore: TransitionStore = {
       async getActiveVolunteer(id) {
         const row = await tx.users.findFirst({ where: { id, role: "VOLUNTEER", status: "ACTIVE", deleted_at: null }, select: { id: true } });
         return row ? { id: row.id, role: "VOLUNTEER", status: "ACTIVE" } : null;
+      },
+      async hasDistribution(donationId) {
+        return (await tx.distribution_entries.count({ where: { donation_id: donationId } })) > 0;
       },
       async insertAssignment(input) { await tx.donation_assignments.create({ data: { donation_id: input.donationId, volunteer_id: input.volunteerId, assigned_by_id: input.assignedById, assigned_at: input.assignedAt } }); },
       async insertExit(input) { await tx.donation_exits.create({ data: { donation_id: input.donationId, exit_status: donation_status[input.status], actor_user_id: input.actorId, actor_role: input.actorRole, reason: input.reason, screening_id: input.screeningId } }); },
