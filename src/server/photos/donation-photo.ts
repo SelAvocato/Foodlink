@@ -1,5 +1,6 @@
 import { DonationStatus } from "@/contracts/enums";
 import type { AllowedImageType } from "@/contracts/image";
+import { safeErrorSummary } from "@/lib/safe-error";
 import { DEFAULT_SIGNED_URL_SECONDS, type Storage } from "@/lib/storage";
 
 /** The donation facts both paths need: who owns it, whether it is live, its status. */
@@ -58,7 +59,7 @@ async function removeUploadedPhoto(storage: PhotoUploadStorage, key: string): Pr
   try {
     await storage.removeObject(key);
   } catch (cleanupError) {
-    console.error("saveFoodPhoto: failed to remove the uploaded photo", { cleanupError });
+    console.error("saveFoodPhoto: failed to remove the uploaded photo", { ...safeErrorSummary(cleanupError) });
   }
 }
 

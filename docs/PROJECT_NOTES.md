@@ -120,6 +120,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - updateDraft and discardDraft do not re-check the donor's account status; the route's requireRole() does. A suspended donor with a still-valid JWT is only stopped there.
 - The donor sets the pickup window after the checklist (wizard step 3), so pickup_end is often null when the checklist is saved. The database re-checks consume-by against the pickup end when the window is set (trigger donations_recheck_checklist); the post step must map that error to a clear message.
 - A retake soft-deletes the old donation_images row but leaves its file in the bucket until a cleanup job exists (retention is still an open question). The screening task must decide what a retake means while a REVIEW verdict is pending, because the photo is locked once the donation is SCREENED.
+- The storage cleanup paths (saveFoodPhoto, registerAccount) and the admin proof URL route log failures only through safeErrorSummary() (a short error name and code, never the message or stack), and the photo routes log only the error name, because storage and Prisma error messages can contain the key. Other routes still log raw errors; new code that touches storage keys or signed URLs must not. Never log a storage key or signed URL.
 
 ## 9. Decision log
 
