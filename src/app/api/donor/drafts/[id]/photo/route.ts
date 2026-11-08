@@ -76,8 +76,11 @@ export async function POST(
       return authErrorResponse(error);
     }
     // Ids only: the storage key and the file contents must never reach the log.
-    console.error("Photo upload failed", { donationId, error });
-    return errorResponse("INTERNAL_ERROR", "The photo could not be saved.", 500);
+
+    console.error("Photo upload failed", {
+      donationId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }); return errorResponse("INTERNAL_ERROR", "The photo could not be saved.", 500);
   }
 }
 
@@ -113,7 +116,10 @@ export async function GET(
       return authErrorResponse(error);
     }
     // Ids only: the signed URL and the storage key must never reach the log.
-    console.error("Photo URL failed", { donationId, error });
+    console.error("Photo URL failed", {
+      donationId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return errorResponse("INTERNAL_ERROR", "The photo could not be loaded.", 500);
   }
 }
