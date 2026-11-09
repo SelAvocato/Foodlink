@@ -25,28 +25,40 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
 ) {
+    let actor: Awaited<ReturnType<typeof requireRole>>;
     try {
-        const actor = await requireRole(["ADMIN"]);
-        const { id } = await context.params;
-        if (!z.uuid().safeParse(id).success) {
-            return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
+        actor = await requireRole(["ADMIN"]);
+    } catch (error) {
+        if (error instanceof AuthorizationError) {
+            return errorResponse(error.code, error.message, error.code === "UNAUTHENTICATED" ? 401 : 403);
         }
+        console.error("Donation transition authorization failed", { error });
+        return errorResponse("INTERNAL_ERROR", "Authorization could not be verified.", 500);
+    }
 
-        let body: unknown;
-        try {
-            body = await request.json();
-        } catch {
-            return errorResponse("INVALID_REQUEST", "Send a valid JSON request body.", 400);
-        }
-        const parsed = transitionBodySchema.safeParse(body);
-        if (!parsed.success) {
-            return errorResponse(
-                "INVALID_REQUEST",
-                "The transition request is invalid.",
-                400,
-                z.flattenError(parsed.error),
-            );
-        }
+    const { id } = await context.params;
+    if (!z.uuid().safeParse(id).success) {
+        return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
+    }
+
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return errorResponse("INVALID_REQUEST", "Send a valid JSON request body.", 400);
+    }
+
+    const parsed = transitionBodySchema.safeParse(body);
+    if (!parsed.success) {
+        return errorResponse(
+            "INVALID_REQUEST",
+            "The transition request is invalid.",
+            400,
+            z.flattenError(parsed.error),
+        );
+    }
+
+    try {
         const { to, ...payload } = parsed.data;
         const result = await transitionDonation(
             { store: prismaTransitionStore },

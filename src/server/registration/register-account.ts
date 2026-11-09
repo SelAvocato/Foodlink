@@ -1,6 +1,7 @@
 import { validateImage } from "@/contracts/image";
 import { PRIVACY_CONSENT_TYPE, PRIVACY_POLICY_VERSION } from "@/contracts/registration";
 import { hashPassword } from "@/lib/password";
+import { safeErrorSummary } from "@/lib/safe-error";
 import type { Storage } from "@/lib/storage";
 
 /** The store throws this when the unique email index (users_email_active_uq) is violated. */
@@ -130,8 +131,9 @@ export async function registerAccount(
     try {
       await deps.storage.removeObject(key);
     } catch (cleanupError) {
-      // The original error matters more than a failed cleanup, but record the orphaned key.
-      console.error("registerAccount: failed to remove orphaned proof", { key, cleanupError });
+      // The original error matters more than a failed cleanup. The key stays out
+      // of the log: a storage error message can contain it.
+      console.error("registerAccount: failed to remove orphaned proof", { ...safeErrorSummary(cleanupError) });
     }
     if (error instanceof DuplicateEmailError) return { ok: false, error: "EMAIL_TAKEN" };
     throw error;

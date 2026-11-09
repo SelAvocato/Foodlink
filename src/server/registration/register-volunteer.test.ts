@@ -144,6 +144,7 @@ function volunteerInput(overrides: Record<string, unknown> = {}): VolunteerRegis
 }
 
 const jpegProof = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const FAKE_SIGNED_URL = "https://storage.example.test/object/sign?token=fake-token";
 
 function jpegOfSize(size: number): Uint8Array {
   const bytes = new Uint8Array(size);
@@ -306,7 +307,11 @@ describe("registerVolunteer", () => {
 
   it("still surfaces the original error when removeObject fails during cleanup", async () => {
     const { store, uploads, deps } = setup({
-      remove: async () => ({ data: null, error: { message: "remove failed" } }),
+      // The storage error message can carry the key and a signed URL; neither may reach the log.
+      remove: async (paths) => ({
+        data: null,
+        error: { message: `remove failed for ${paths[0] ?? "unknown"} at ${FAKE_SIGNED_URL}` },
+      }),
     });
     store.boom = true;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -316,9 +321,21 @@ describe("registerVolunteer", () => {
       await expect(registerVolunteer(deps, volunteerInput(), jpegProof)).rejects.toThrow("boom");
       expect(uploads).toHaveLength(1);
       expectNoRows(store);
+
       expect(consoleError).toHaveBeenCalledTimes(1);
-      expect(consoleError.mock.calls[0]?.[0]).toContain("registerAccount");
-      expect(consoleError.mock.calls[0]?.[1]).toMatchObject({ key: uploads[0] });
+      expect(consoleError.mock.calls[0]?.[0]).toBe("registerAccount: failed to remove orphaned proof");
+      expect(Object.keys(consoleError.mock.calls[0]?.[1] as object)).toEqual(["errorName"]);
+
+      const logged = JSON.stringify(consoleError.mock.calls);
+      const uploadedKey = uploads[0];
+      if (!uploadedKey) throw new Error("expected one uploaded key");
+      // Not even the file name part of the key may appear.
+      const fileName = uploadedKey.split("/").at(-1);
+      expect(fileName).toBeTruthy();
+      expect(logged).not.toContain(FAKE_SIGNED_URL);
+      expect(logged).not.toContain("remove failed");
+      expect(logged).not.toContain(uploadedKey);
+      expect(logged).not.toContain(fileName);
     } finally {
       consoleError.mockRestore();
     }

@@ -23,6 +23,7 @@ vi.mock("@/server/storage", () => ({ createServerStorage: vi.fn(() => ({})) }));
 const VALID_USER_ID = "11111111-1111-4111-8111-111111111111";
 const VALID_DOCUMENT_ID = "22222222-2222-4222-8222-222222222222";
 const SIGNED_URL = "https://storage.example.test/proofs/signed?token=fake-token";
+const STORAGE_KEY = "proofs/33333333-3333-4333-8333-333333333333.jpg";
 
 const adminActor: AuthenticatedActor = {
   id: "admin-1",
@@ -148,29 +149,71 @@ describe("GET /api/admin/users/[id]/documents/[documentId]/signed-url", () => {
     });
   });
 
-  it("answers 500 with a generic message and logs only the ids when signing fails", async () => {
-    vi.mocked(getProofSignedUrl).mockRejectedValue(new Error("storage exploded"));
+  it("answers 500 with a generic message and logs only ids and the error name when signing fails", async () => {
+    // A storage or Prisma error can carry the key and the signed URL in its message.
+    const message = `sign failed for ${STORAGE_KEY} at ${SIGNED_URL}`;
+    vi.mocked(getProofSignedUrl).mockRejectedValue(new Error(message));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const res = await get(VALID_USER_ID, VALID_DOCUMENT_ID);
+    try {
+      const res = await get(VALID_USER_ID, VALID_DOCUMENT_ID);
 
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({
-      error: "INTERNAL_ERROR",
-      message: "The proof URL could not be created.",
-    });
-    expect(consoleError).toHaveBeenCalledTimes(1);
-    const [label, details] = consoleError.mock.calls[0];
-    expect(label).toBe("Proof URL failed");
-    expect(details).toMatchObject({
-      userId: VALID_USER_ID,
-      documentId: VALID_DOCUMENT_ID,
-      error: expect.any(Error),
-    });
-    expect(Object.keys(details as object).sort()).toEqual(["documentId", "error", "userId"]);
-    const serialized = JSON.stringify(details);
-    expect(serialized).not.toContain(SIGNED_URL);
-    expect(serialized).not.toContain("storage_key");
-    consoleError.mockRestore();
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({
+        error: "INTERNAL_ERROR",
+        message: "The proof URL could not be created.",
+      });
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [label, details] = consoleError.mock.calls[0];
+      expect(label).toBe("Proof URL failed");
+      expect(Object.keys(details as object).sort()).toEqual(["documentId", "errorName", "userId"]);
+      expect(details).toEqual({
+        userId: VALID_USER_ID,
+        documentId: VALID_DOCUMENT_ID,
+        errorName: "Error",
+      });
+
+      const serialized = JSON.stringify(consoleError.mock.calls);
+      expect(serialized).not.toContain(STORAGE_KEY);
+      expect(serialized).not.toContain(SIGNED_URL);
+      expect(serialized).not.toContain(message);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("logs a code when the failing error has one, never the message", async () => {
+    const message = `sign failed for ${STORAGE_KEY} at ${SIGNED_URL}`;
+    vi.mocked(getProofSignedUrl).mockRejectedValue(
+      Object.assign(new Error(message), { code: "P2025" }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = await get(VALID_USER_ID, VALID_DOCUMENT_ID);
+
+      expect(res.status).toBe(500);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [, details] = consoleError.mock.calls[0];
+      expect(Object.keys(details as object).sort()).toEqual([
+        "documentId",
+        "errorCode",
+        "errorName",
+        "userId",
+      ]);
+      expect(details).toEqual({
+        userId: VALID_USER_ID,
+        documentId: VALID_DOCUMENT_ID,
+        errorName: "Error",
+        errorCode: "P2025",
+      });
+
+      const serialized = JSON.stringify(consoleError.mock.calls);
+      expect(serialized).not.toContain(STORAGE_KEY);
+      expect(serialized).not.toContain(SIGNED_URL);
+      expect(serialized).not.toContain(message);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

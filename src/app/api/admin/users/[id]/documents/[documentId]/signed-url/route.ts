@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { safeErrorSummary } from "@/lib/safe-error";
 import { prismaProofStore } from "@/server/admin/prisma-proof-store";
 import { getProofSignedUrl } from "@/server/admin/proof-url";
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
@@ -47,8 +48,8 @@ export async function GET(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    // Ids only: the signed URL and the storage key must never reach the log.
-    console.error("Proof URL failed", { userId, documentId, error });
+    // Ids and safe error tokens only: the signed URL and the storage key must never reach the log.
+    console.error("Proof URL failed", { userId, documentId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The proof URL could not be created.", 500);
   }
 }

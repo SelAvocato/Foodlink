@@ -17,7 +17,7 @@ class FakeStore implements TransitionStore {
   } | null = null;
   activeVolunteers = new Set<string>();
   distributionCount = 0;
-  completionTotals = { portions: 10, distributed: 0, unusable: 0 };
+  completionTotals = { portions: 10, distributed: 10, unusable: 0 };
   forceUpdateFailure = false;
   updates: unknown[] = [];
   assignments: unknown[] = [];
@@ -124,7 +124,7 @@ describe("transitionDonation", () => {
       .resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
   });
 
-  it("allows an Admin to pass or reject a draft", async () => {
+  it("allows an Admin to pass or reject a draft screening", async () => {
     await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "SCREENED", admin))
       .resolves.toEqual({ from: "DRAFT", to: "SCREENED" });
     await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "REJECTED", admin))
@@ -140,6 +140,12 @@ describe("transitionDonation", () => {
     fake.completionTotals = { portions: 10, distributed: 8, unusable: 2 };
     await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
       .resolves.toEqual({ from: "DELIVERED", to: "CLOSED" });
+    const mismatch = store("DELIVERED");
+    mismatch.donation = { ...mismatch.donation!, currentVolunteerId: "volunteer-1" };
+    mismatch.distributionCount = 1;
+    mismatch.completionTotals = { portions: 10, distributed: 9, unusable: 0 };
+    await expect(transitionDonation({ store: mismatch }, "donation-1", "CLOSED", volunteer))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
   });
 
   it("preserves audit transition fields over metadata", async () => {
