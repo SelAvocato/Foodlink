@@ -15,12 +15,17 @@ const MAX_PHOTO_BYTES = Math.min(MAX_IMAGE_BYTES, 4 * 1024 * 1024);
 const PHOTO_MESSAGE = "Photo must be a JPEG, PNG, or WebP image up to 4 MB.";
 
 /** Upload refusals only; the message is ours, never the storage or database one. */
-function uploadErrorResponse(error: "NOT_FOUND" | "NOT_EDITABLE", fallbackMessage: string): Response {
+function uploadErrorResponse(
+  error: "NOT_FOUND" | "NOT_EDITABLE" | "REVIEW_PENDING",
+  fallbackMessage: string,
+): Response {
   switch (error) {
     case "NOT_FOUND":
       return errorResponse("NOT_FOUND", "The draft was not found.", 404);
     case "NOT_EDITABLE":
       return errorResponse("NOT_EDITABLE", "That draft can no longer be edited.", 409);
+    case "REVIEW_PENDING":
+      return errorResponse("REVIEW_PENDING", "Your photo is waiting for review and cannot be changed.", 409);
     default:
       return errorResponse("INTERNAL_ERROR", fallbackMessage, 500);
   }
