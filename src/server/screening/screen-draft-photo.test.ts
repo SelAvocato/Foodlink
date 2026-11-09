@@ -10,6 +10,7 @@ import {
   type ScreeningStore,
   type ScreeningTransitionInput,
   type ScreeningTransitionResult,
+  type ScreeningTx,
 } from "./screen-draft-photo";
 import type { ScreeningProvider } from "./screening-provider";
 
@@ -30,6 +31,10 @@ class FakeStore implements ScreeningStore {
   screenings: ScreeningRow[] = [];
   reviewPending = false;
   insertError: Error | null = null;
+  /** Shared order log: proves the provider runs outside and the transition after. */
+  events: string[] = [];
+  /** Fired when the locked transaction starts (after the provider call) to simulate an interleaving. */
+  onTransaction: (() => void) | null = null;
   private seq = 0;
 
   seedDraft(overrides: Partial<ScreeningDonation> = {}): void {
@@ -71,6 +76,22 @@ class FakeStore implements ScreeningStore {
     );
   }
 
+  /** The tx methods read the same state; the fake has no real lock to take. */
+  async transaction<T>(work: (tx: ScreeningTx) => Promise<T>): Promise<T> {
+    this.events.push("tx:start");
+    if (this.onTransaction) this.onTransaction();
+    try {
+      return await work({
+        getDonationLocked: (id) => this.readDonation(id),
+        findActiveFoodPhoto: (donationId) => this.findActiveFoodPhoto(donationId),
+        hasPendingReview: (donationId) => this.hasPendingReview(donationId),
+        insertScreening: (row) => this.insertScreening(row),
+      });
+    } finally {
+      this.events.push("tx:end");
+    }
+  }
+
   async insertScreening(row: ScreeningInsert): Promise<{ id: string }> {
     if (this.insertError) throw this.insertError;
     this.seq += 1;
@@ -94,6 +115,7 @@ class FakeProvider implements ScreeningProvider {
   name = "fake-provider";
   modelVersion: string | null = "v-test";
   calls: { imageUrl: string; mimeType: AllowedImageType }[] = [];
+  events: string[] = [];
   reply: () => Promise<unknown> = async () => ({
     verdict: ScreeningVerdict.PASS,
     confidence: 0.99,
@@ -102,6 +124,7 @@ class FakeProvider implements ScreeningProvider {
 
   async screen(input: { imageUrl: string; mimeType: AllowedImageType }): Promise<unknown> {
     this.calls.push(input);
+    this.events.push("provider");
     return this.reply();
   }
 }
@@ -109,18 +132,24 @@ class FakeProvider implements ScreeningProvider {
 class FakeTransition {
   calls: ScreeningTransitionInput[] = [];
   result: ScreeningTransitionResult = { ok: true };
+  events: string[] = [];
 
   async run(input: ScreeningTransitionInput): Promise<ScreeningTransitionResult> {
     this.calls.push({ ...input });
+    this.events.push("transition");
     return this.result;
   }
 }
 
 function makeDeps(overrides: { timeoutMs?: number } = {}) {
+  const events: string[] = [];
   const store = new FakeStore();
   const storage = new FakeStorage();
   const provider = new FakeProvider();
   const transition = new FakeTransition();
+  store.events = events;
+  provider.events = events;
+  transition.events = events;
   const deps: ScreenDraftPhotoDeps = {
     store,
     storage,
@@ -132,7 +161,7 @@ function makeDeps(overrides: { timeoutMs?: number } = {}) {
   store.seedDraft();
   store.seedPhoto();
 
-  return { deps, store, storage, provider, transition };
+  return { deps, store, storage, provider, transition, events };
 }
 
 function passResult(confidence = 0.99): unknown {
@@ -529,6 +558,79 @@ describe("screenDraftPhoto", () => {
     expect(store.screenings).toEqual([]);
     expect(transition.calls).toEqual([]);
   });
+
+  it("answers PHOTO_CHANGED when the photo changes between the provider call and the locked insert", async () => {
+    const { deps, store, transition } = makeDeps();
+    store.onTransaction = () =>
+      store.seedPhoto({ imageId: NEW_IMAGE_ID, storageKey: "food/55555555-5555-4555-8555-555555555555.jpg" });
+
+    const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+
+    expect(result).toEqual({ ok: false, error: "PHOTO_CHANGED" });
+    expect(store.screenings).toEqual([]);
+    expect(transition.calls).toEqual([]);
+  });
+
+  it("answers NOT_FOUND when the donation is discarded inside the lock, inserting nothing", async () => {
+    const { deps, store, transition } = makeDeps();
+    store.onTransaction = () => store.seedDraft({ deletedAt: new Date("2026-11-09T12:00:00.000Z") });
+
+    const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(store.screenings).toEqual([]);
+    expect(transition.calls).toEqual([]);
+  });
+
+  it("answers NOT_EDITABLE when the donation leaves DRAFT inside the lock, inserting nothing", async () => {
+    const { deps, store, transition } = makeDeps();
+    store.onTransaction = () => store.seedDraft({ status: DonationStatus.SCREENED });
+
+    const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+
+    expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
+    expect(store.screenings).toEqual([]);
+    expect(transition.calls).toEqual([]);
+  });
+
+  it("answers REVIEW_PENDING when a concurrent screening saved a REVIEW inside the lock", async () => {
+    const { deps, store, transition } = makeDeps();
+    const concurrent: ScreeningRow = {
+      id: "00000000-0000-4000-8000-999999999999",
+      donationId: DONATION_ID,
+      imageId: IMAGE_ID,
+      provider: "other-request",
+      modelVersion: "v0",
+      verdict: ScreeningVerdict.REVIEW,
+      confidence: 0.9,
+      signs: ["unclear"],
+      notes: null,
+    };
+    store.onTransaction = () => store.screenings.push(concurrent);
+
+    const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+
+    expect(result).toEqual({ ok: false, error: "REVIEW_PENDING" });
+    expect(store.screenings).toEqual([concurrent]);
+    expect(transition.calls).toEqual([]);
+  });
+
+  it.each([["PASS"], ["FLAG"], ["REVIEW"]] as const)(
+    "runs the provider outside the transaction and the transition only after it commits (%s)",
+    async (verdict) => {
+      const { deps, provider, events } = makeDeps();
+      provider.reply = async () => ({ verdict, confidence: 0.95, signs: [] });
+
+      const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+
+      expect(result.ok).toBe(true);
+      expect(events).toEqual(
+        verdict === "REVIEW"
+          ? ["provider", "tx:start", "tx:end"]
+          : ["provider", "tx:start", "tx:end", "transition"],
+      );
+    },
+  );
 
   it("maps a refused transition to NOT_EDITABLE and keeps the screening row", async () => {
     const { deps, store, transition } = makeDeps();

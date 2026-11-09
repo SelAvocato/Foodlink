@@ -29,13 +29,25 @@ export type ScreeningInsert = {
   notes: string | null;
 };
 
+/**
+ * The locked part of the store: the donation row is held FOR UPDATE, so the
+ * final checks and the screening insert cannot interleave with a photo retake.
+ */
+export type ScreeningTx = {
+  getDonationLocked(id: string): Promise<ScreeningDonation | null>;
+  findActiveFoodPhoto(donationId: string): Promise<ActiveFoodPhoto | null>;
+  hasPendingReview(donationId: string): Promise<boolean>;
+  insertScreening(row: ScreeningInsert): Promise<{ id: string }>;
+};
+
 export interface ScreeningStore {
   readDonation(id: string): Promise<ScreeningDonation | null>;
   /** The active FOOD_PHOTO row only; a retake soft-deletes the old one. */
   findActiveFoodPhoto(donationId: string): Promise<ActiveFoodPhoto | null>;
   /** A food_screenings row with verdict REVIEW and reviewed_at null. */
   hasPendingReview(donationId: string): Promise<boolean>;
-  insertScreening(row: ScreeningInsert): Promise<{ id: string }>;
+  /** Runs `work` with the donation row locked; rolls back if `work` throws. */
+  transaction<T>(work: (tx: ScreeningTx) => Promise<T>): Promise<T>;
 }
 
 export type ScreeningStorage = Pick<Storage, "getSignedUrl">;
@@ -173,10 +185,15 @@ function evaluateAttempt(attempt: ProviderAttempt): Evaluation {
   return { verdict: result.verdict, confidence: result.confidence, signs, notes: null };
 }
 
+type SavedScreening =
+  | { ok: true; screeningId: string }
+  | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" | "REVIEW_PENDING" | "PHOTO_CHANGED" };
+
 /**
- * Screens the donor's food photo for a DRAFT donation. The screening row is
- * saved first, then PASS/FLAG ask the injected transition to move the donation;
- * donations.status and donation_exits are never written here.
+ * Screens the donor's food photo for a DRAFT donation. The final checks and
+ * the screening row are saved under the donation row lock (the same lock photo
+ * uploads take), then PASS/FLAG ask the injected transition to move the
+ * donation; donations.status and donation_exits are never written here.
  */
 export async function screenDraftPhoto(
   deps: ScreenDraftPhotoDeps,
@@ -210,50 +227,61 @@ export async function screenDraftPhoto(
   );
   const evaluation = evaluateAttempt(attempt);
 
-  // The provider call takes time: confirm the donation is still the same draft.
-  const latest = await deps.store.readDonation(donationId);
-  if (!latest || latest.donorId !== donorId || latest.deletedAt !== null) {
-    return { ok: false, error: "NOT_FOUND" };
-  }
-  if (latest.status !== DonationStatus.DRAFT) {
-    return { ok: false, error: "NOT_EDITABLE" };
-  }
-
-  // A retake during the call replaced the photo the provider looked at.
-  const latestPhoto = await deps.store.findActiveFoodPhoto(donationId);
-  if (!latestPhoto || latestPhoto.imageId !== photo.imageId) {
-    return { ok: false, error: "PHOTO_CHANGED" };
-  }
-
-  const screening = await deps.store.insertScreening({
-    donationId,
-    imageId: photo.imageId,
-    provider: deps.provider.name,
-    modelVersion: deps.provider.modelVersion,
-    verdict: evaluation.verdict,
-    confidence: evaluation.confidence,
-    signs: evaluation.signs,
-    notes: evaluation.notes,
+  // One locked section: a retake commits either before this lock (the checks
+  // below see the new photo) or after the insert (the retake is refused), so
+  // the row always refers to the photo the Admin will review. The provider
+  // runs outside the transaction and never holds the lock.
+  const saved = await deps.store.transaction(async (tx): Promise<SavedScreening> => {
+    const latest = await tx.getDonationLocked(donationId);
+    if (!latest || latest.donorId !== donorId || latest.deletedAt !== null) {
+      return { ok: false, error: "NOT_FOUND" };
+    }
+    if (latest.status !== DonationStatus.DRAFT) {
+      return { ok: false, error: "NOT_EDITABLE" };
+    }
+    // Also stops two concurrent screenings from both saving a REVIEW.
+    if (await tx.hasPendingReview(donationId)) {
+      return { ok: false, error: "REVIEW_PENDING" };
+    }
+    // A retake during the provider call replaced the photo the provider looked at.
+    const latestPhoto = await tx.findActiveFoodPhoto(donationId);
+    if (!latestPhoto || latestPhoto.imageId !== photo.imageId) {
+      return { ok: false, error: "PHOTO_CHANGED" };
+    }
+    const screening = await tx.insertScreening({
+      donationId,
+      imageId: photo.imageId,
+      provider: deps.provider.name,
+      modelVersion: deps.provider.modelVersion,
+      verdict: evaluation.verdict,
+      confidence: evaluation.confidence,
+      signs: evaluation.signs,
+      notes: evaluation.notes,
+    });
+    return { ok: true, screeningId: screening.id };
   });
+  if (!saved.ok) {
+    return { ok: false, error: saved.error };
+  }
 
   if (evaluation.verdict === ScreeningVerdict.REVIEW) {
-    return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "DRAFT" };
+    return { ok: true, verdict: evaluation.verdict, screeningId: saved.screeningId, donationStatus: "DRAFT" };
   }
 
   if (evaluation.verdict === ScreeningVerdict.FLAG) {
     const reason = rejectionReason(evaluation.signs);
     // transitionDonation() opens its own transaction, so the row above stays even if this is refused.
-    const outcome = await deps.transition({ donationId, to: "REJECTED", screeningId: screening.id, reason });
+    const outcome = await deps.transition({ donationId, to: "REJECTED", screeningId: saved.screeningId, reason });
     if (!outcome.ok) {
       return { ok: false, error: outcome.error === "NOT_FOUND" ? "NOT_FOUND" : "NOT_EDITABLE" };
     }
-    return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "REJECTED", reason };
+    return { ok: true, verdict: evaluation.verdict, screeningId: saved.screeningId, donationStatus: "REJECTED", reason };
   }
 
-  const outcome = await deps.transition({ donationId, to: "SCREENED", screeningId: screening.id });
+  const outcome = await deps.transition({ donationId, to: "SCREENED", screeningId: saved.screeningId });
   if (!outcome.ok) {
     return { ok: false, error: outcome.error === "NOT_FOUND" ? "NOT_FOUND" : "NOT_EDITABLE" };
   }
 
-  return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "SCREENED" };
+  return { ok: true, verdict: evaluation.verdict, screeningId: saved.screeningId, donationStatus: "SCREENED" };
 }

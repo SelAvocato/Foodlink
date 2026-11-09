@@ -59,6 +59,18 @@ function createTransactionAdapter(tx: typeof prisma): PhotoTx {
       });
       return count > 0;
     },
+    async hasDecidedScreeningForActivePhoto(donationId) {
+      if (!UUID_PATTERN.test(donationId)) return false;
+      // The screening must sit on this donation's own active FOOD_PHOTO.
+      const count = await tx.food_screenings.count({
+        where: {
+          donation_id: donationId,
+          verdict: { in: [screening_verdict.PASS, screening_verdict.FLAG] },
+          donation_images: { donation_id: donationId, image_role: "FOOD_PHOTO", deleted_at: null },
+        },
+      });
+      return count > 0;
+    },
   };
 }
 
@@ -101,6 +113,18 @@ export const prismaPhotoStore: PhotoStore = {
     if (!UUID_PATTERN.test(donationId)) return false;
     const count = await prisma.food_screenings.count({
       where: { donation_id: donationId, verdict: screening_verdict.REVIEW, reviewed_at: null },
+    });
+    return count > 0;
+  },
+  async hasDecidedScreeningForActivePhoto(donationId) {
+    if (!UUID_PATTERN.test(donationId)) return false;
+    // The screening must sit on this donation's own active FOOD_PHOTO.
+    const count = await prisma.food_screenings.count({
+      where: {
+        donation_id: donationId,
+        verdict: { in: [screening_verdict.PASS, screening_verdict.FLAG] },
+        donation_images: { donation_id: donationId, image_role: "FOOD_PHOTO", deleted_at: null },
+      },
     });
     return count > 0;
   },

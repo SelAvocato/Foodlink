@@ -31,8 +31,10 @@ class FakeStore implements PhotoStore {
   lockOverride: PhotoDonation | null | undefined = undefined;
   /** Returned by tx.hasPendingReview instead of the stored rows, to simulate a race. */
   pendingReviewAtLock: boolean | undefined = undefined;
+  /** Returned by tx.hasDecidedScreeningForActivePhoto instead of the stored rows, to simulate a race. */
+  decidedScreeningAtLock: boolean | undefined = undefined;
   /** The screening rows that decide the retake block. */
-  screenings: { verdict: ScreeningVerdict; reviewedAt: Date | null }[] = [];
+  screenings: { imageId: string | null; verdict: ScreeningVerdict; reviewedAt: Date | null }[] = [];
   insertError: Error | null = null;
   private seq = 0;
 
@@ -74,10 +76,25 @@ class FakeStore implements PhotoStore {
     return this.anyPendingReview();
   }
 
+  async hasDecidedScreeningForActivePhoto(donationId: string): Promise<boolean> {
+    return this.anyDecidedScreening(donationId);
+  }
+
   /** The database rule: a row with verdict REVIEW and reviewed_at null. */
   private anyPendingReview(): boolean {
     return this.screenings.some(
       (row) => row.verdict === ScreeningVerdict.REVIEW && row.reviewedAt === null,
+    );
+  }
+
+  /** The database rule: a PASS or FLAG row on the donation's active FOOD_PHOTO. */
+  private anyDecidedScreening(donationId: string): boolean {
+    const active = this.images.find((row) => row.donationId === donationId && row.deletedAt === null);
+    if (!active) return false;
+    return this.screenings.some(
+      (row) =>
+        row.imageId === active.id &&
+        (row.verdict === ScreeningVerdict.PASS || row.verdict === ScreeningVerdict.FLAG),
     );
   }
 
@@ -101,6 +118,10 @@ class FakeStore implements PhotoStore {
       },
       hasPendingReview: async () =>
         this.pendingReviewAtLock !== undefined ? this.pendingReviewAtLock : this.anyPendingReview(),
+      hasDecidedScreeningForActivePhoto: async (donationId) =>
+        this.decidedScreeningAtLock !== undefined
+          ? this.decidedScreeningAtLock
+          : this.anyDecidedScreening(donationId),
     };
   }
 }
@@ -218,7 +239,7 @@ describe("saveFoodPhoto", () => {
   it("answers REVIEW_PENDING before any upload while a review is pending", async () => {
     const { store, storage } = makeDeps();
     store.seedDonation(DONATION_ID, draftDonation());
-    store.screenings.push({ verdict: ScreeningVerdict.REVIEW, reviewedAt: null });
+    store.screenings.push({ imageId: null, verdict: ScreeningVerdict.REVIEW, reviewedAt: null });
 
     const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
 
@@ -240,19 +261,78 @@ describe("saveFoodPhoto", () => {
     expect(store.images).toEqual([]);
   });
 
-  it.each<[string, { verdict: ScreeningVerdict; reviewedAt: Date | null }]>([
-    ["a reviewed REVIEW", { verdict: ScreeningVerdict.REVIEW, reviewedAt: new Date("2026-11-09T00:00:00.000Z") }],
-    ["a PASS", { verdict: ScreeningVerdict.PASS, reviewedAt: null }],
-  ])("allows a retake when the only screening is %s", async (_label, screening) => {
+  it("allows a retake when the active photo has no screening", async () => {
     const { store, storage } = makeDeps();
     store.seedDonation(DONATION_ID, draftDonation());
-    store.screenings.push(screening);
+    store.seedImage({ id: "image-active", storageKey: OLD_KEY });
 
     const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
 
     expect(result.ok).toBe(true);
     expect(storage.uploads).toHaveLength(1);
+    expect(store.images.filter((row) => row.deletedAt === null)).toHaveLength(1);
+  });
+
+  it("allows a retake when the active photo has only a reviewed REVIEW screening", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-active", storageKey: OLD_KEY });
+    store.screenings.push({
+      imageId: "image-active",
+      verdict: ScreeningVerdict.REVIEW,
+      reviewedAt: new Date("2026-11-09T00:00:00.000Z"),
+    });
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result.ok).toBe(true);
+    expect(storage.uploads).toHaveLength(1);
+  });
+
+  it("allows a retake when the screening belongs to an older, soft-deleted image", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-old", storageKey: OLD_KEY, deletedAt: new Date("2026-11-08T10:00:00.000Z") });
+    store.seedImage({ id: "image-active", storageKey: NEW_KEY });
+    store.screenings.push({ imageId: "image-old", verdict: ScreeningVerdict.FLAG, reviewedAt: null });
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result.ok).toBe(true);
+    expect(storage.uploads).toHaveLength(1);
+    expect(store.images.filter((row) => row.deletedAt === null)).toHaveLength(1);
+  });
+
+  it.each([[ScreeningVerdict.PASS], [ScreeningVerdict.FLAG]] as const)(
+    "answers NOT_EDITABLE before any upload when the active photo has a %s screening",
+    async (verdict) => {
+      const { store, storage } = makeDeps();
+      store.seedDonation(DONATION_ID, draftDonation());
+      store.seedImage({ id: "image-active", storageKey: OLD_KEY });
+      store.screenings.push({ imageId: "image-active", verdict, reviewedAt: null });
+
+      const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+      expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
+      expect(storage.uploads).toEqual([]);
+      expect(store.images).toHaveLength(1);
+      expect(store.images[0].deletedAt).toBeNull();
+    },
+  );
+
+  it("removes the uploaded object when a decided screening appears before the locked re-check", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-active", storageKey: OLD_KEY });
+    store.decidedScreeningAtLock = true;
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
+    expect(storage.uploads).toHaveLength(1);
+    expect(storage.removed).toEqual([NEW_KEY]);
     expect(store.images).toHaveLength(1);
+    expect(store.images[0].deletedAt).toBeNull();
   });
 
   it.each([

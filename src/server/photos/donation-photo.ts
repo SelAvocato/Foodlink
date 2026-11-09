@@ -32,6 +32,8 @@ export interface PhotoTx {
   insertFoodPhoto(row: FoodPhotoInsert): Promise<{ id: string }>;
   /** A food_screenings row with verdict REVIEW and reviewed_at null for the donation. */
   hasPendingReview(donationId: string): Promise<boolean>;
+  /** A PASS or FLAG screening row on the donation's active FOOD_PHOTO. */
+  hasDecidedScreeningForActivePhoto(donationId: string): Promise<boolean>;
 }
 
 export interface PhotoStore {
@@ -42,6 +44,8 @@ export interface PhotoStore {
   findActiveFoodPhoto(donationId: string): Promise<StoredFoodPhoto | null>;
   /** Plain read: while a REVIEW verdict waits for an Admin, the photo must not change. */
   hasPendingReview(donationId: string): Promise<boolean>;
+  /** Plain read: after PASS or FLAG the active photo must not change either. */
+  hasDecidedScreeningForActivePhoto(donationId: string): Promise<boolean>;
 }
 
 export type PhotoUploadStorage = Pick<Storage, "uploadImage" | "removeObject">;
@@ -92,6 +96,12 @@ export async function saveFoodPhoto(
   if (await deps.store.hasPendingReview(donationId)) {
     return { ok: false, error: "REVIEW_PENDING" };
   }
+  // After PASS or FLAG the donation is about to leave DRAFT, and a retake
+  // between the screening insert and the transition would put an unscreened
+  // photo on a screened donation.
+  if (await deps.store.hasDecidedScreeningForActivePhoto(donationId)) {
+    return { ok: false, error: "NOT_EDITABLE" };
+  }
 
   const { key } = await deps.storage.uploadImage({
     folder: "food",
@@ -113,6 +123,11 @@ export async function saveFoodPhoto(
       // Re-check under the lock: a review can have been opened since the read.
       if (await tx.hasPendingReview(donationId)) {
         return { ok: false, error: "REVIEW_PENDING" };
+      }
+      // The screening insert takes this lock too, so a decided screening for
+      // the active photo cannot appear between this check and the insert.
+      if (await tx.hasDecidedScreeningForActivePhoto(donationId)) {
+        return { ok: false, error: "NOT_EDITABLE" };
       }
 
       // The unique partial index donation_images_one_food_photo_uq allows one
