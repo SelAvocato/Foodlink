@@ -4,10 +4,13 @@ import { listAdminDonationQueue, type AdminDonationQueueStore } from "./donation
 
 class FakeQueueStore implements AdminDonationQueueStore {
   rows: AdminDonationQueueItem[] = [];
-  calls: (number | null)[] = [];
+  calls: { foodCategoryId: number | null; limit: number }[] = [];
 
-  async findPostedDonations(foodCategoryId: number | null): Promise<AdminDonationQueueItem[]> {
-    this.calls.push(foodCategoryId);
+  async findPostedDonations(
+    foodCategoryId: number | null,
+    limit: number,
+  ): Promise<AdminDonationQueueItem[]> {
+    this.calls.push({ foodCategoryId, limit });
     return [...this.rows];
   }
 }
@@ -42,12 +45,13 @@ describe("listAdminDonationQueue", () => {
     expect(items.map((item) => item.donationId)).toEqual(["third", "first", "second"]);
   });
 
-  it("respects the limit after taking the store's rows", async () => {
+  it("sends the limit to the store and still trims rows the store returns beyond it", async () => {
     const store = new FakeQueueStore();
     store.rows = [row({ donationId: "a" }), row({ donationId: "b" }), row({ donationId: "c" })];
 
     const items = await listAdminDonationQueue({ store }, { limit: 2 });
 
+    expect(store.calls).toEqual([{ foodCategoryId: null, limit: 2 }]);
     expect(items.map((item) => item.donationId)).toEqual(["a", "b"]);
   });
 
@@ -100,13 +104,16 @@ describe("listAdminDonationQueue", () => {
     }
   });
 
-  it("passes the category filter through and asks for every category when absent", async () => {
+  it("passes the category filter and the limit through, and asks for every category when absent", async () => {
     const store = new FakeQueueStore();
 
     await listAdminDonationQueue({ store }, { limit: 50 });
-    await listAdminDonationQueue({ store }, { limit: 50, foodCategoryId: 3 });
+    await listAdminDonationQueue({ store }, { limit: 7, foodCategoryId: 3 });
 
-    expect(store.calls).toEqual([null, 3]);
+    expect(store.calls).toEqual([
+      { foodCategoryId: null, limit: 50 },
+      { foodCategoryId: 3, limit: 7 },
+    ]);
   });
 
   it("returns an empty list when the store has nothing", async () => {

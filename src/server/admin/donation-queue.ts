@@ -3,9 +3,13 @@ import type { AdminDonationQueueItem } from "@/contracts/admin-donation-queue";
 export interface AdminDonationQueueStore {
   /**
    * POSTED, unexpired, non-deleted donations in fn_admin_donation_queue's order
-   * (soonest pickup end, then posted_at). A null category means every category.
+   * (soonest pickup end, then posted_at), at most `limit` of them. A null category
+   * means every category.
    */
-  findPostedDonations(foodCategoryId: number | null): Promise<AdminDonationQueueItem[]>;
+  findPostedDonations(
+    foodCategoryId: number | null,
+    limit: number,
+  ): Promise<AdminDonationQueueItem[]>;
 }
 
 export interface AdminDonationQueueInput {
@@ -22,8 +26,9 @@ export async function listAdminDonationQueue(
   deps: { store: AdminDonationQueueStore },
   input: AdminDonationQueueInput,
 ): Promise<AdminDonationQueueItem[]> {
-  const rows = await deps.store.findPostedDonations(input.foodCategoryId ?? null);
+  const rows = await deps.store.findPostedDonations(input.foodCategoryId ?? null, input.limit);
 
+  // The store already limits, but slice again so a misbehaving store cannot widen the response.
   return rows.slice(0, input.limit).map((row) => ({
     donationId: row.donationId,
     foodName: row.foodName,

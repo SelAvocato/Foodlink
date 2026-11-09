@@ -137,8 +137,8 @@ describe("GET /api/admin/donations/queue", () => {
       })),
     });
     expect(findPostedDonations()).toHaveBeenCalledTimes(1);
-    // No category filter sent: the function receives NULL.
-    expect(findPostedDonations()).toHaveBeenCalledWith(null);
+    // No category filter sent: the function receives NULL, and the default limit is 50.
+    expect(findPostedDonations()).toHaveBeenCalledWith(null, 50);
   });
 
   it("returns 200 with an empty array when the queue is empty", async () => {
@@ -156,7 +156,7 @@ describe("GET /api/admin/donations/queue", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.donations).toHaveLength(1);
-    expect(findPostedDonations()).toHaveBeenCalledWith(3);
+    expect(findPostedDonations()).toHaveBeenCalledWith(3, 1);
   });
 
   it("returns only the allow-listed fields, never contact details, QR or storage keys", async () => {
