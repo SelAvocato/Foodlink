@@ -3,7 +3,7 @@
 Living notes for teammates and AI tools. Read this before making changes.
 Keep it short. When a PR changes a decision, a rule or a gotcha below, update this file in the same PR.
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 ## 1. What FoodLink is
 
@@ -121,6 +121,9 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - The donor sets the pickup window after the checklist (wizard step 3), so pickup_end is often null when the checklist is saved. The database re-checks consume-by against the pickup end when the window is set (trigger donations_recheck_checklist); the post step must map that error to a clear message.
 - A retake soft-deletes the old donation_images row but leaves its file in the bucket until a cleanup job exists (retention is still an open question). The screening task must decide what a retake means while a REVIEW verdict is pending, because the photo is locked once the donation is SCREENED.
 - The storage cleanup paths (saveFoodPhoto, registerAccount) and the admin proof URL route log failures only through safeErrorSummary() (a short error name and code, never the message or stack), and the photo routes log only the error name, because storage and Prisma error messages can contain the key. Other routes still log raw errors; new code that touches storage keys or signed URLs must not. Never log a storage key or signed URL.
+- The screening row is saved before the status transition because transitionDonation() opens its own transaction; if the transition fails the screening row stays and the donation is still DRAFT, and screening can be run again. A double submit can create two screening rows; the second transition is refused.
+- The provider receives a 60-second signed URL (matching screenFoodImage(imageUrl) in the PDF); when a real provider is chosen, prefer sending the file bytes from the server, which needs a download helper in src/lib/storage.ts. The 0.7 confidence threshold is our choice, the PDF gives none.
+- Provider text (signs) is stored and shown in the rejection reason after stripping angle brackets and control characters; there is still no HTML sanitizer.
 
 ## 9. Decision log
 
@@ -149,6 +152,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 8 | Donor draft routes live under /api/donor/drafts (POST create, GET list, PATCH and DELETE on [id]). The list returns DRAFT and SCREENED donations only, newest first, max 50. A malformed draft id returns 400 INVALID_REQUEST; a missing or foreign draft id returns 404 NOT_FOUND. |
 | Nov 8 | Donation safety checklist routes live at /api/donor/drafts/[id]/checklist (PUT saves the whole checklist, GET reads it). Saving progress is allowed while the donation is DRAFT or SCREENED; completed_at is set by the server only when every rule for the category passes, otherwise it stays null. Fields the category does not use (prepared time, storage condition and temperature) are stored as null. The rules mirror fn_assert_checklist_rules; the database remains the last line of defence. |
 | Nov 8 | Donor food photo routes live at /api/donor/drafts/[id]/photo (POST uploads or retakes, GET returns a 300-second signed URL for the donor's own photo, no audit row). One active FOOD_PHOTO per donation (unique partial index): a retake soft-deletes the old row and inserts the new one in one locked transaction. Upload and retake are allowed only while the donation is DRAFT. The file is uploaded before the database write and removed again if the write is refused or fails. The upload does not run screening and does not change the donation status. |
+| Nov 8 | Food screening runs behind a provider interface (screenDraftPhoto, src/server/screening/): the provider's reply is validated with Zod and anything that throws, times out (10 s), is malformed or has confidence below 0.7 becomes REVIEW. PASS moves the DRAFT donation to SCREENED and FLAG to REJECTED (with the reason and the screening id) through transitionDonation() with a null system actor; REVIEW leaves it in DRAFT with the verdict saved, and a pending review is a food_screenings row with verdict REVIEW and reviewed_at null. The provider is a mock that always passes until a real one is chosen after the demo. |
 
 ## 10. Open questions
 
