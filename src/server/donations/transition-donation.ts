@@ -34,7 +34,12 @@ export class DonationTransitionError extends Error {
 }
 
 function requireReason(to: DonationStatus, actor: DonationActor | null, reason?: string) {
-  if (to === "DECLINED" || to === "REJECTED_AT_PICKUP" || (to === "CANCELLED" && actor?.role === "ADMIN")) {
+  if (
+    to === "DECLINED" ||
+    to === "REJECTED_AT_PICKUP" ||
+    (to === "REJECTED" && actor?.role === "ADMIN") ||
+    (to === "CANCELLED" && actor?.role === "ADMIN")
+  ) {
     if (!reason?.trim()) throw new DonationTransitionError("MISSING_PAYLOAD", "A reason is required");
   }
 }

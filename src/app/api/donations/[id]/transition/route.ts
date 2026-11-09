@@ -80,7 +80,7 @@ export async function POST(
                 400;
             return errorResponse(error.code, error.message, status);
         }
-        console.error("Donation transition failed", { donationId: id, error });
+        console.error("Donation transition failed", { error });
         return errorResponse("INTERNAL_ERROR", "The donation transition could not be completed.", 500);
     }
 }

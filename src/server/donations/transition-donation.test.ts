@@ -127,8 +127,9 @@ describe("transitionDonation", () => {
   it("allows an Admin to pass or reject a draft screening", async () => {
     await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "SCREENED", admin))
       .resolves.toEqual({ from: "DRAFT", to: "SCREENED" });
-    await expect(transitionDonation({ store: store("DRAFT") }, "donation-1", "REJECTED", admin))
-      .resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
+    await expect(
+      transitionDonation({ store: store("DRAFT") }, "donation-1", "REJECTED", admin, { reason: "Visible spoilage" }),
+    ).resolves.toEqual({ from: "DRAFT", to: "REJECTED" });
   });
 
   it("requires a distribution row before closing", async () => {
@@ -137,6 +138,7 @@ describe("transitionDonation", () => {
     await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
       .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
     fake.distributionCount = 1;
+    fake.completionTotals = { portions: 10, distributed: 8, unusable: 2 };
     await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
       .resolves.toEqual({ from: "DELIVERED", to: "CLOSED" });
     const mismatch = store("DELIVERED");
