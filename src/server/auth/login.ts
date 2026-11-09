@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getEnv } from "@/lib/env.server";
 import { safeErrorSummary } from "@/lib/safe-error";
 import { prisma } from "@/server/db";
+import { writeAuditLog } from "@/server/audit";
 
 const loginSchema = z.object({
     email: z.string().trim().toLowerCase().email().max(254),
@@ -33,21 +34,19 @@ function hashIp(ip: string | undefined) {
         .slice(0, 16);
 }
 
-async function writeAuditLog(
+async function logLoginFailure(
     category: LoginFailureCategory,
     ip: string | undefined,
     userId?: string,
 ) {
-    await prisma.audit_logs.create({
-        data: {
-            actor_user_id: userId,
-            action: "AUTH_LOGIN_FAILURE",
-            target_type: "AUTH_LOGIN",
-            target_id: userId,
-            details: {
-                category,
-                ip_hash: hashIp(ip),
-            },
+    await writeAuditLog({
+        actorUserId: userId ?? null,
+        action: "AUTH_LOGIN_FAILURE",
+        targetType: "AUTH_LOGIN",
+        targetId: userId ?? null,
+        details: {
+            category,
+            ip_hash: hashIp(ip),
         },
     });
 }
@@ -117,12 +116,12 @@ export async function authenticateLogin(
         });
 
         if (!user?.user_credentials) {
-            await writeAuditLog("user_not_found", clientIp(headers));
+            await logLoginFailure("user_not_found", clientIp(headers));
             throw new LoginError("user_not_found");
         }
 
         if (user.user_credentials.locked_until && user.user_credentials.locked_until > new Date()) {
-            await writeAuditLog("account_locked", clientIp(headers), user.id);
+            await logLoginFailure("account_locked", clientIp(headers), user.id);
             throw new LoginError("account_locked");
         }
 
@@ -131,7 +130,7 @@ export async function authenticateLogin(
                 | "pending_account"
                 | "rejected_account"
                 | "suspended_account";
-            await writeAuditLog(category, clientIp(headers), user.id);
+            await logLoginFailure(category, clientIp(headers), user.id);
             throw new LoginError(category, inactiveAccountMessage(user.status));
         }
 
@@ -158,7 +157,7 @@ export async function authenticateLogin(
                 throw new LoginError("database_error");
             }
 
-            await writeAuditLog("invalid_password", clientIp(headers), user.id);
+            await logLoginFailure("invalid_password", clientIp(headers), user.id);
             throw new LoginError("invalid_password");
         }
 
@@ -195,7 +194,7 @@ export async function authenticateLogin(
             ...safeErrorSummary(error),
             category: "database_error",
         });
-        await writeAuditLog("database_error", clientIp(headers));
+        await logLoginFailure("database_error", clientIp(headers));
         throw new LoginError("database_error");
     }
 }
