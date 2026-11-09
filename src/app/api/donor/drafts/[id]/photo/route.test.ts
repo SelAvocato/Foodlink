@@ -186,6 +186,7 @@ describe("POST /api/donor/drafts/[id]/photo", () => {
   it.each([
     ["NOT_FOUND", 404, "The draft was not found."],
     ["NOT_EDITABLE", 409, "That draft can no longer be edited."],
+    ["REVIEW_PENDING", 409, "Your photo is waiting for review and cannot be changed."],
   ] as const)("answers %s with status %i", async (error, status, message) => {
     vi.mocked(saveFoodPhoto).mockResolvedValue({ ok: false, error });
 
