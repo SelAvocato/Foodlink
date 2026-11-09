@@ -130,6 +130,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - The posting checks and the transition are not atomic: transitionDonation() opens its own transaction, so a checklist or pickup save from the same donor landing in those few milliseconds could post a donation whose final state was not checked (the database triggers still guard consume-by against the pickup end). A guard hook inside transitionDonation() would close it.
 - The PDF's optional pickup notes have no column in donations (description is the food description); the field is not stored yet.
 - A donor cancel notifies nobody: transitionDonation() creates notifications for the donor only (the donor is the actor), so Admin is not told when a donor cancels a POSTED or ACCEPTED donation until the notification phase.
+- A REVIEW verdict keeps the donation in DRAFT and freezes the donor's photo until an Admin decides; the seed has no REVIEW case and the mock provider always passes, so the queue is empty in a fresh environment.
 
 ## 9. Decision log
 
@@ -165,6 +166,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 | Nov 9 | Posting: POST /api/donor/drafts/[id]/post (donor only, body { confirmed: true }). It re-validates everything the PDF requires (donation is SCREENED, an active food photo exists, the checklist is complete under the category rules, the pickup address and window are set, the start is in the future and consume-by is after the pickup end) and then calls transitionDonation() as the donor with a server-generated QR token (32 random bytes, base64url, 43 characters). The token is never returned or logged; the donor reads it from the QR label route (GET /api/donor/donations/[id]/qr). The expiry is the pickup end (no expires_at column), returned as expiresAt. |
 | Nov 9 | Donor cancel: POST /api/donor/donations/[id]/cancel (donor only, optional reason up to 500 characters) while the donation is POSTED or ACCEPTED, through transitionDonation() as the donor; once a volunteer is assigned only an Admin can cancel. QR label: GET /api/donor/donations/[id]/qr returns the token for the owner while the donation is POSTED, ACCEPTED or ASSIGNED, with Cache-Control: no-store; the token is never logged. The scan URL format is decided with the volunteer scan route. |
 | Nov 9 | Admin donation queue (list): GET /api/admin/donations/queue (Admin only) returns POSTED, unexpired donations by soonest pickup end through fn_admin_donation_queue, with the donor's display name and the pickup address as text, and an optional foodCategoryId filter. Accepting or declining goes through the generic transition route until dedicated routes exist. No phone, email, QR token or storage keys are returned. |
+| Nov 9 | Admin screening queue (read side): GET /api/admin/screenings lists donations whose latest screening is REVIEW with no reviewer, ordered oldest first, with a short-lived signed photo URL and the checklist; no donor contact data. The decision route (pass or reject) will be added separately. |
 
 ## 10. Open questions
 
