@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { verify } from "@node-rs/argon2";
 import { z } from "zod";
 import { getEnv } from "@/lib/env.server";
+import { safeErrorSummary } from "@/lib/safe-error";
 import { prisma } from "@/server/db";
 
 const loginSchema = z.object({
@@ -191,7 +192,7 @@ export async function authenticateLogin(
     } catch (error) {
         if (error instanceof LoginError) throw error;
         console.error("Authentication database failure", {
-            error,
+            ...safeErrorSummary(error),
             category: "database_error",
         });
         await writeAuditLog("database_error", clientIp(headers));
