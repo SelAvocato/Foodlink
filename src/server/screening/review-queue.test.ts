@@ -215,4 +215,40 @@ describe("listScreeningQueue", () => {
     ]);
     expect(items[0]).not.toHaveProperty("photoKey");
   });
+
+  it("starts every signer call before the first resolves and keeps oldest-first order", async () => {
+    const resolvers: ((url: string) => void)[] = [];
+    const signedKeys: string[] = [];
+    const signPhoto = vi.fn(
+      (key: string) =>
+        new Promise<string>((resolve) => {
+          signedKeys.push(key);
+          resolvers.push(resolve);
+        }),
+    );
+    const store = new FakeQueueStore();
+    store.rows = [
+      queueRow({ screeningId: "screen-1", donationId: "donation-1", createdAt: new Date("2026-11-01T00:00:00.000Z"), photoKey: "key-1" }),
+      queueRow({ screeningId: "screen-2", donationId: "donation-2", createdAt: new Date("2026-11-02T00:00:00.000Z"), photoKey: "key-2" }),
+      queueRow({ screeningId: "screen-3", donationId: "donation-3", createdAt: new Date("2026-11-03T00:00:00.000Z"), photoKey: "key-3" }),
+    ];
+
+    const queuePromise = listScreeningQueue({ store, signPhoto }, { limit: 20 });
+    // Let the service reach the signing round: every call must have started
+    // before any of them is allowed to resolve.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(signPhoto).toHaveBeenCalledTimes(3);
+    expect(signedKeys).toEqual(["key-1", "key-2", "key-3"]);
+
+    // Resolve newest first: Promise.all must still answer oldest first.
+    resolvers[2]("url-3");
+    resolvers[1]("url-2");
+    resolvers[0]("url-1");
+
+    const items = await queuePromise;
+    expect(items.map((item) => item.screeningId)).toEqual(["screen-1", "screen-2", "screen-3"]);
+    expect(items.map((item) => item.photoUrl)).toEqual(["url-1", "url-2", "url-3"]);
+  });
 });

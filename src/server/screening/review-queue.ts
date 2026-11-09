@@ -78,37 +78,40 @@ export async function listScreeningQueue(
 
   const pending = [...latestByDonation.values()].sort(oldestFirst).slice(0, input.limit);
 
-  const items: ScreeningQueueItem[] = [];
-  for (const row of pending) {
-    let photoUrl: string | null = null;
-    if (row.photoKey !== null) {
-      try {
-        photoUrl = await deps.signPhoto(row.photoKey);
-      } catch (error) {
-        // One failed URL must not drop the case: the Admin still sees the rest
-        // of the queue. The log carries the screening id and safe tokens only,
-        // never the raw message (it can contain the key or a signed URL).
-        console.error("Screening photo URL failed", {
-          screeningId: row.screeningId,
-          ...safeErrorSummary(error),
-        });
+  // Sign every photo URL concurrently: with a limit of 100 that is one round of
+  // storage calls instead of up to 100 sequential ones. Promise.all keeps the
+  // oldest-first order of `pending` no matter which URL resolves first.
+  return Promise.all(
+    pending.map(async (row) => {
+      let photoUrl: string | null = null;
+      if (row.photoKey !== null) {
+        try {
+          photoUrl = await deps.signPhoto(row.photoKey);
+        } catch (error) {
+          // One failed URL must not drop the case: the Admin still sees the rest
+          // of the queue. The log carries the screening id and safe tokens only,
+          // never the raw message (it can contain the key or a signed URL).
+          console.error("Screening photo URL failed", {
+            screeningId: row.screeningId,
+            ...safeErrorSummary(error),
+          });
+        }
       }
-    }
-    items.push({
-      screeningId: row.screeningId,
-      donationId: row.donationId,
-      createdAt: row.createdAt,
-      confidence: row.confidence,
-      signs: row.signs,
-      notes: row.notes,
-      donation: {
-        foodName: row.foodName,
-        portions: row.portions,
-        categoryCode: row.categoryCode,
-      },
-      checklist: row.checklist,
-      photoUrl,
-    });
-  }
-  return items;
+      return {
+        screeningId: row.screeningId,
+        donationId: row.donationId,
+        createdAt: row.createdAt,
+        confidence: row.confidence,
+        signs: row.signs,
+        notes: row.notes,
+        donation: {
+          foodName: row.foodName,
+          portions: row.portions,
+          categoryCode: row.categoryCode,
+        },
+        checklist: row.checklist,
+        photoUrl,
+      };
+    }),
+  );
 }
