@@ -11,8 +11,8 @@ import type {
 import type { DonationStatus, Role } from "@/contracts/enums";
 
 const transitions: Record<DonationStatus, Partial<Record<DonationStatus, readonly Role[]>>> = {
-  DRAFT: { SCREENED: [], REJECTED: [] },
-  SCREENED: { POSTED: ["DONOR"], REJECTED: [] },
+  DRAFT: { SCREENED: ["ADMIN"], REJECTED: ["ADMIN"] },
+  SCREENED: { POSTED: ["DONOR"] },
   POSTED: { ACCEPTED: ["ADMIN"], DECLINED: ["ADMIN"], CANCELLED: ["DONOR", "ADMIN"], EXPIRED: [] },
   ACCEPTED: { ASSIGNED: ["ADMIN"], CANCELLED: ["DONOR", "ADMIN"], EXPIRED: [] },
   ASSIGNED: { PICKED_UP: ["VOLUNTEER"], REJECTED_AT_PICKUP: ["VOLUNTEER"], CANCELLED: ["ADMIN"], EXPIRED: [] },
@@ -76,8 +76,11 @@ export async function transitionDonation(
     if (to === "ASSIGNED" && !payload.volunteerId) {
       throw new DonationTransitionError("MISSING_PAYLOAD", "A volunteer is required when assigning");
     }
-    if (to === "CLOSED" && !(await tx.hasDistribution(id))) {
-      throw new DonationTransitionError("MISSING_PAYLOAD", "A distribution record is required when closing");
+    if (to === "CLOSED") {
+      const totals = await tx.getCompletionTotals(id);
+      if (!(await tx.hasDistribution(id)) || totals.distributed + totals.unusable !== totals.portions) {
+        throw new DonationTransitionError("MISSING_PAYLOAD", "Distribution totals must reconcile before closing");
+      }
     }
     if (to === "ACCEPTED" && (!donation.pickupEnd || donation.pickupEnd <= new Date())) {
       throw new DonationTransitionError("INVALID_TRANSITION", "Donation pickup window has passed");
@@ -134,6 +137,22 @@ export const prismaTransitionStore: TransitionStore = {
       async hasDistribution(donationId) {
         return (await tx.distribution_entries.count({ where: { donation_id: donationId } })) > 0;
       },
+      async getCompletionTotals(donationId) {
+        const donation = await tx.donations.findUnique({ where: { id: donationId }, select: { portions: true } });
+        const distributed = await tx.distribution_entries.aggregate({
+          where: { donation_id: donationId },
+          _sum: { portions_distributed: true },
+        });
+        const unusable = await tx.unusable_portions.aggregate({
+          where: { donation_id: donationId },
+          _sum: { portions: true },
+        });
+        return {
+          portions: donation?.portions ?? 0,
+          distributed: distributed._sum.portions_distributed ?? 0,
+          unusable: unusable._sum.portions ?? 0,
+        };
+      },
       async insertAssignment(input) { await tx.donation_assignments.create({ data: { donation_id: input.donationId, volunteer_id: input.volunteerId, assigned_by_id: input.assignedById, assigned_at: input.assignedAt } }); },
       async insertExit(input) { await tx.donation_exits.create({ data: { donation_id: input.donationId, exit_status: donation_status[input.status], actor_user_id: input.actorId, actor_role: input.actorRole, reason: input.reason, screening_id: input.screeningId } }); },
       async insertTracking(input) { await tx.donation_tracking_events.create({ data: { donation_id: input.donationId, from_status: donation_status[input.from], to_status: donation_status[input.to], actor_user_id: input.actorId, event_note: input.note, metadata: input.metadata } }); },
@@ -141,5 +160,5 @@ export const prismaTransitionStore: TransitionStore = {
       async insertAudit(input) { await tx.audit_logs.create({ data: { actor_user_id: input.actorId, action: "DONATION_TRANSITION", target_type: "DONATION", target_id: input.targetId, details: input.details } }); },
     };
     return work(adapter);
-  }),
+  }, { maxWait: 10000, timeout: 30000 }),
 };
