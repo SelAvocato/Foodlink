@@ -166,3 +166,157 @@ describe("transitionDonation", () => {
     expect(fake.exits).toHaveLength(0);
   });
 });
+
+describe("transitionDonation matrix", () => {
+  const ALL_STATUSES: DonationStatus[] = [
+    "DRAFT", "SCREENED", "POSTED", "ACCEPTED", "ASSIGNED", "PICKED_UP", "DELIVERED",
+    "CLOSED", "REJECTED", "DECLINED", "REJECTED_AT_PICKUP", "CANCELLED", "EXPIRED",
+  ];
+  const ALLOWED_PAIRS = new Set([
+    "DRAFT-SCREENED", "DRAFT-REJECTED", "SCREENED-POSTED",
+    "POSTED-ACCEPTED", "POSTED-DECLINED", "POSTED-CANCELLED", "POSTED-EXPIRED",
+    "ACCEPTED-ASSIGNED", "ACCEPTED-CANCELLED", "ACCEPTED-EXPIRED",
+    "ASSIGNED-PICKED_UP", "ASSIGNED-REJECTED_AT_PICKUP", "ASSIGNED-CANCELLED", "ASSIGNED-EXPIRED",
+    "PICKED_UP-DELIVERED", "DELIVERED-CLOSED",
+  ]);
+  const FORBIDDEN_PAIRS = ALL_STATUSES.flatMap((from) =>
+    ALL_STATUSES.filter((to) => !ALLOWED_PAIRS.has(`${from}-${to}`)).map((to) => [from, to]),
+  );
+
+  it.each(FORBIDDEN_PAIRS)("refuses %s -> %s", async (from, to) => {
+    const actor = (to as DonationStatus) === "EXPIRED" ? null : admin;
+    await expect(
+      transitionDonation({ store: store(from as DonationStatus) }, "donation-1", to as DonationStatus, actor, { reason: "Test reason" }),
+    ).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+  });
+
+  const ALLOWED_ACTORS: Array<{
+    from: DonationStatus;
+    to: DonationStatus;
+    actors: ReadonlyArray<"ADMIN" | "DONOR" | "VOLUNTEER" | null>;
+  }> = [
+    { from: "DRAFT", to: "SCREENED", actors: ["ADMIN", null] },
+    { from: "DRAFT", to: "REJECTED", actors: ["ADMIN", null] },
+    { from: "SCREENED", to: "POSTED", actors: ["DONOR"] },
+    { from: "POSTED", to: "ACCEPTED", actors: ["ADMIN"] },
+    { from: "POSTED", to: "DECLINED", actors: ["ADMIN"] },
+    { from: "POSTED", to: "CANCELLED", actors: ["DONOR", "ADMIN"] },
+    { from: "POSTED", to: "EXPIRED", actors: [null] },
+    { from: "ACCEPTED", to: "ASSIGNED", actors: ["ADMIN"] },
+    { from: "ACCEPTED", to: "CANCELLED", actors: ["DONOR", "ADMIN"] },
+    { from: "ACCEPTED", to: "EXPIRED", actors: [null] },
+    { from: "ASSIGNED", to: "PICKED_UP", actors: ["VOLUNTEER"] },
+    { from: "ASSIGNED", to: "REJECTED_AT_PICKUP", actors: ["VOLUNTEER"] },
+    { from: "ASSIGNED", to: "CANCELLED", actors: ["ADMIN"] },
+    { from: "ASSIGNED", to: "EXPIRED", actors: [null] },
+    { from: "PICKED_UP", to: "DELIVERED", actors: ["VOLUNTEER"] },
+    { from: "DELIVERED", to: "CLOSED", actors: ["VOLUNTEER"] },
+  ];
+  const ROLES = ["ADMIN", "DONOR", "VOLUNTEER", null] as const;
+  const WRONG_ACTOR_CASES = ALLOWED_ACTORS.flatMap(({ from, to, actors }) =>
+    ROLES.filter((role) => !actors.includes(role)).map((role) => [from, to, String(role)] as const),
+  );
+
+  it.each(WRONG_ACTOR_CASES)("refuses %s -> %s as %s", async (from, to, roleLabel) => {
+    const role = roleLabel === "null" ? null : (roleLabel as "ADMIN" | "DONOR" | "VOLUNTEER");
+    const actor: DonationActor | null = role === null ? null : { id: `${role.toLowerCase()}-1`, role };
+    const fake = store(from);
+    if (role === "VOLUNTEER") fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(
+      transitionDonation({ store: fake }, "donation-1", to, actor, { reason: "Test reason" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN_ACTOR" });
+  });
+
+  it("posts a screened donation only when the donor provides a QR token", async () => {
+    await expect(transitionDonation({ store: store("SCREENED") }, "donation-1", "POSTED", donor))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    await expect(transitionDonation({ store: store("SCREENED") }, "donation-1", "POSTED", donor, { qrToken: "qr-token" }))
+      .resolves.toEqual({ from: "SCREENED", to: "POSTED" });
+  });
+
+  it("lets the donor cancel a posted donation without a reason and the admin only with one", async () => {
+    await expect(transitionDonation({ store: store("POSTED") }, "donation-1", "CANCELLED", donor))
+      .resolves.toEqual({ from: "POSTED", to: "CANCELLED" });
+    await expect(transitionDonation({ store: store("POSTED") }, "donation-1", "CANCELLED", admin))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    await expect(transitionDonation({ store: store("POSTED") }, "donation-1", "CANCELLED", admin, { reason: "Safety concern" }))
+      .resolves.toEqual({ from: "POSTED", to: "CANCELLED" });
+  });
+
+  it("declines a posted donation only with a reason", async () => {
+    await expect(transitionDonation({ store: store("POSTED") }, "donation-1", "DECLINED", admin))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    await expect(transitionDonation({ store: store("POSTED") }, "donation-1", "DECLINED", admin, { reason: "Unsafe food" }))
+      .resolves.toEqual({ from: "POSTED", to: "DECLINED" });
+  });
+
+  it("assigns a volunteer only to an active one and only with the id", async () => {
+    await expect(transitionDonation({ store: store("ACCEPTED") }, "donation-1", "ASSIGNED", admin))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    await expect(
+      transitionDonation({ store: store("ACCEPTED") }, "donation-1", "ASSIGNED", admin, { volunteerId: "ghost-volunteer" }),
+    ).rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+  });
+
+  it("lets the system expire posted, accepted and assigned donations only after pickup_end", async () => {
+    for (const from of ["POSTED", "ACCEPTED", "ASSIGNED"] as const) {
+      const future = store(from, new Date(Date.now() + 60_000));
+      future.donation = { ...future.donation!, currentVolunteerId: from === "ASSIGNED" ? "volunteer-1" : null };
+      await expect(transitionDonation({ store: future }, "donation-1", "EXPIRED", null))
+        .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+      const past = store(from, new Date(Date.now() - 1_000));
+      past.donation = { ...past.donation!, currentVolunteerId: from === "ASSIGNED" ? "volunteer-1" : null };
+      await expect(transitionDonation({ store: past }, "donation-1", "EXPIRED", null))
+        .resolves.toEqual({ from, to: "EXPIRED" });
+    }
+  });
+
+  it("rejects at pickup with a reason and writes an exit row", async () => {
+    const fake = store("ASSIGNED");
+    fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(transitionDonation({ store: fake }, "donation-1", "REJECTED_AT_PICKUP", volunteer))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    const result = await transitionDonation({ store: fake }, "donation-1", "REJECTED_AT_PICKUP", volunteer, { reason: "Packaging damaged" });
+    expect(result).toEqual({ from: "ASSIGNED", to: "REJECTED_AT_PICKUP" });
+    expect(fake.exits[0]).toMatchObject({ status: "REJECTED_AT_PICKUP", reason: "Packaging damaged", actorId: "volunteer-1" });
+  });
+
+  it("cancels an assigned donation only as Admin and only with a reason", async () => {
+    const fake = store("ASSIGNED");
+    fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(transitionDonation({ store: fake }, "donation-1", "CANCELLED", volunteer))
+      .rejects.toMatchObject({ code: "FORBIDDEN_ACTOR" });
+    await expect(transitionDonation({ store: fake }, "donation-1", "CANCELLED", admin))
+      .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    const result = await transitionDonation({ store: fake }, "donation-1", "CANCELLED", admin, { reason: "Venue full" });
+    expect(result).toEqual({ from: "ASSIGNED", to: "CANCELLED" });
+    expect(fake.exits[0]).toMatchObject({ status: "CANCELLED", reason: "Venue full", actorId: "admin-1" });
+  });
+
+  it("lets the currently assigned volunteer deliver and refuses anyone else", async () => {
+    const fake = store("PICKED_UP");
+    fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(transitionDonation({ store: fake }, "donation-1", "DELIVERED", admin))
+      .rejects.toMatchObject({ code: "FORBIDDEN_ACTOR" });
+    await expect(transitionDonation({ store: fake }, "donation-1", "DELIVERED", volunteer))
+      .resolves.toEqual({ from: "PICKED_UP", to: "DELIVERED" });
+  });
+
+  it("closes only for the currently assigned volunteer", async () => {
+    const fake = store("DELIVERED");
+    fake.distributionCount = 1;
+    fake.completionTotals = { portions: 10, distributed: 8, unusable: 2 };
+    fake.donation = { ...fake.donation!, currentVolunteerId: "volunteer-1" };
+    await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", { id: "other-volunteer", role: "VOLUNTEER" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN_ACTOR" });
+    await expect(transitionDonation({ store: fake }, "donation-1", "CLOSED", volunteer))
+      .resolves.toEqual({ from: "DELIVERED", to: "CLOSED" });
+  });
+
+  it("answers NOT_FOUND for an unknown donation", async () => {
+    const fake = store("POSTED");
+    fake.donation = null;
+    await expect(transitionDonation({ store: fake }, "unknown", "ACCEPTED", admin))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
