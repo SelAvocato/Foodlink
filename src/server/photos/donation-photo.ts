@@ -30,6 +30,8 @@ export interface PhotoTx {
   /** Soft-deletes the donation's active FOOD_PHOTO row, if there is one. */
   softDeleteActiveFoodPhoto(donationId: string): Promise<void>;
   insertFoodPhoto(row: FoodPhotoInsert): Promise<{ id: string }>;
+  /** A food_screenings row with verdict REVIEW and reviewed_at null for the donation. */
+  hasPendingReview(donationId: string): Promise<boolean>;
 }
 
 export interface PhotoStore {
@@ -38,6 +40,8 @@ export interface PhotoStore {
   /** Plain read outside any transaction: ownership before any upload. */
   readDonation(id: string): Promise<PhotoDonation | null>;
   findActiveFoodPhoto(donationId: string): Promise<StoredFoodPhoto | null>;
+  /** Plain read: while a REVIEW verdict waits for an Admin, the photo must not change. */
+  hasPendingReview(donationId: string): Promise<boolean>;
 }
 
 export type PhotoUploadStorage = Pick<Storage, "uploadImage" | "removeObject">;
@@ -45,7 +49,7 @@ export type PhotoUrlStorage = Pick<Storage, "getSignedUrl">;
 
 export type SaveFoodPhotoResult =
   | { ok: true; imageId: string }
-  | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" };
+  | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" | "REVIEW_PENDING" };
 
 export type GetFoodPhotoUrlResult =
   | { ok: true; url: string; expiresInSeconds: number; mimeType: AllowedImageType }
@@ -66,7 +70,8 @@ async function removeUploadedPhoto(storage: PhotoUploadStorage, key: string): Pr
 /**
  * Uploads the donor's one food photo, or replaces the current one (a retake).
  * Only a DRAFT donation may change: the photo is locked once the donation is
- * SCREENED. donations.status is never written here.
+ * SCREENED and while a REVIEW verdict waits for an Admin. donations.status is
+ * never written here.
  */
 export async function saveFoodPhoto(
   deps: { store: PhotoStore; storage: PhotoUploadStorage },
@@ -81,6 +86,11 @@ export async function saveFoodPhoto(
   }
   if (donation.status !== DonationStatus.DRAFT) {
     return { ok: false, error: "NOT_EDITABLE" };
+  }
+  // The Admin reviews exactly the photo the donor sees: while a REVIEW verdict
+  // is pending the photo is frozen, before any upload happens.
+  if (await deps.store.hasPendingReview(donationId)) {
+    return { ok: false, error: "REVIEW_PENDING" };
   }
 
   const { key } = await deps.storage.uploadImage({
@@ -99,6 +109,10 @@ export async function saveFoodPhoto(
       }
       if (locked.status !== DonationStatus.DRAFT) {
         return { ok: false, error: "NOT_EDITABLE" };
+      }
+      // Re-check under the lock: a review can have been opened since the read.
+      if (await tx.hasPendingReview(donationId)) {
+        return { ok: false, error: "REVIEW_PENDING" };
       }
 
       // The unique partial index donation_images_one_food_photo_uq allows one

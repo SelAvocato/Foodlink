@@ -1,3 +1,4 @@
+import { screening_verdict } from "@/generated/prisma/enums";
 import { DonationStatus } from "@/contracts/enums";
 import { ALLOWED_IMAGE_TYPES, type AllowedImageType } from "@/contracts/image";
 import { prisma } from "@/server/db";
@@ -51,6 +52,13 @@ function createTransactionAdapter(tx: typeof prisma): PhotoTx {
         select: { id: true },
       });
     },
+    async hasPendingReview(donationId) {
+      if (!UUID_PATTERN.test(donationId)) return false;
+      const count = await tx.food_screenings.count({
+        where: { donation_id: donationId, verdict: screening_verdict.REVIEW, reviewed_at: null },
+      });
+      return count > 0;
+    },
   };
 }
 
@@ -88,5 +96,12 @@ export const prismaPhotoStore: PhotoStore = {
     });
     if (!photo) return null;
     return { storageKey: photo.storage_key, mimeType: toMimeType(photo.mime_type) };
+  },
+  async hasPendingReview(donationId) {
+    if (!UUID_PATTERN.test(donationId)) return false;
+    const count = await prisma.food_screenings.count({
+      where: { donation_id: donationId, verdict: screening_verdict.REVIEW, reviewed_at: null },
+    });
+    return count > 0;
   },
 };

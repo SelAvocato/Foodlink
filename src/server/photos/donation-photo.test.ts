@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DonationStatus } from "@/contracts/enums";
+import { DonationStatus, ScreeningVerdict } from "@/contracts/enums";
 import type { AllowedImageType } from "@/contracts/image";
 import type { ImageContentType, UploadFolder } from "@/lib/storage";
 import {
@@ -29,6 +29,10 @@ class FakeStore implements PhotoStore {
   images: ImageRow[] = [];
   /** Returned by getDonationLocked instead of the stored row, to simulate a race. */
   lockOverride: PhotoDonation | null | undefined = undefined;
+  /** Returned by tx.hasPendingReview instead of the stored rows, to simulate a race. */
+  pendingReviewAtLock: boolean | undefined = undefined;
+  /** The screening rows that decide the retake block. */
+  screenings: { verdict: ScreeningVerdict; reviewedAt: Date | null }[] = [];
   insertError: Error | null = null;
   private seq = 0;
 
@@ -66,6 +70,17 @@ class FakeStore implements PhotoStore {
     return image ? { storageKey: image.storageKey, mimeType: image.mimeType } : null;
   }
 
+  async hasPendingReview(): Promise<boolean> {
+    return this.anyPendingReview();
+  }
+
+  /** The database rule: a row with verdict REVIEW and reviewed_at null. */
+  private anyPendingReview(): boolean {
+    return this.screenings.some(
+      (row) => row.verdict === ScreeningVerdict.REVIEW && row.reviewedAt === null,
+    );
+  }
+
   private createTx(): PhotoTx {
     return {
       getDonationLocked: async (id) =>
@@ -84,6 +99,8 @@ class FakeStore implements PhotoStore {
         this.images.push({ ...row, id, deletedAt: null });
         return { id };
       },
+      hasPendingReview: async () =>
+        this.pendingReviewAtLock !== undefined ? this.pendingReviewAtLock : this.anyPendingReview(),
     };
   }
 }
@@ -197,6 +214,46 @@ describe("saveFoodPhoto", () => {
       expect(store.images).toEqual([]);
     },
   );
+
+  it("answers REVIEW_PENDING before any upload while a review is pending", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.screenings.push({ verdict: ScreeningVerdict.REVIEW, reviewedAt: null });
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result).toEqual({ ok: false, error: "REVIEW_PENDING" });
+    expect(storage.uploads).toEqual([]);
+    expect(store.images).toEqual([]);
+  });
+
+  it("removes the uploaded object when a review opens before the locked re-check", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.pendingReviewAtLock = true;
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result).toEqual({ ok: false, error: "REVIEW_PENDING" });
+    expect(storage.uploads).toHaveLength(1);
+    expect(storage.removed).toEqual([NEW_KEY]);
+    expect(store.images).toEqual([]);
+  });
+
+  it.each<[string, { verdict: ScreeningVerdict; reviewedAt: Date | null }]>([
+    ["a reviewed REVIEW", { verdict: ScreeningVerdict.REVIEW, reviewedAt: new Date("2026-11-09T00:00:00.000Z") }],
+    ["a PASS", { verdict: ScreeningVerdict.PASS, reviewedAt: null }],
+  ])("allows a retake when the only screening is %s", async (_label, screening) => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.screenings.push(screening);
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result.ok).toBe(true);
+    expect(storage.uploads).toHaveLength(1);
+    expect(store.images).toHaveLength(1);
+  });
 
   it.each([
     ["NOT_FOUND", null],

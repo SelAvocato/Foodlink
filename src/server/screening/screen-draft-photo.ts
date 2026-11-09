@@ -68,7 +68,15 @@ export type ScreenDraftPhotoResult =
       ok: true;
       verdict: ScreeningVerdict;
       screeningId: string;
-      donationStatus: "SCREENED" | "REJECTED" | "DRAFT";
+      donationStatus: "SCREENED" | "DRAFT";
+    }
+  | {
+      ok: true;
+      verdict: "FLAG";
+      screeningId: string;
+      donationStatus: "REJECTED";
+      /** The exact reason string sent to the transition, returned for the donor. */
+      reason: string;
     }
   | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" | "REVIEW_PENDING" | "PHOTO_REQUIRED" | "PHOTO_CHANGED" };
 
@@ -232,18 +240,20 @@ export async function screenDraftPhoto(
     return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "DRAFT" };
   }
 
-  const flagged = evaluation.verdict === ScreeningVerdict.FLAG;
-  const to = flagged ? "REJECTED" : "SCREENED";
-  // transitionDonation() opens its own transaction, so the row above stays even if this is refused.
-  const outcome = await deps.transition({
-    donationId,
-    to,
-    screeningId: screening.id,
-    ...(flagged ? { reason: rejectionReason(evaluation.signs) } : {}),
-  });
+  if (evaluation.verdict === ScreeningVerdict.FLAG) {
+    const reason = rejectionReason(evaluation.signs);
+    // transitionDonation() opens its own transaction, so the row above stays even if this is refused.
+    const outcome = await deps.transition({ donationId, to: "REJECTED", screeningId: screening.id, reason });
+    if (!outcome.ok) {
+      return { ok: false, error: outcome.error === "NOT_FOUND" ? "NOT_FOUND" : "NOT_EDITABLE" };
+    }
+    return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "REJECTED", reason };
+  }
+
+  const outcome = await deps.transition({ donationId, to: "SCREENED", screeningId: screening.id });
   if (!outcome.ok) {
     return { ok: false, error: outcome.error === "NOT_FOUND" ? "NOT_FOUND" : "NOT_EDITABLE" };
   }
 
-  return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: to };
+  return { ok: true, verdict: evaluation.verdict, screeningId: screening.id, donationStatus: "SCREENED" };
 }

@@ -184,6 +184,19 @@ describe("screenDraftPhoto", () => {
     expect(transition.calls[0]).not.toHaveProperty("reason");
   });
 
+  it("returns no reason on outcomes other than REJECTED", async () => {
+    const { deps, provider } = makeDeps();
+
+    const pass = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+    expect(pass.ok).toBe(true);
+    expect(pass).not.toHaveProperty("reason");
+
+    provider.reply = async () => ({ verdict: ScreeningVerdict.REVIEW, confidence: 0.9, signs: [] });
+    const review = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
+    expect(review.ok).toBe(true);
+    expect(review).not.toHaveProperty("reason");
+  });
+
   it("on FLAG stores the row and rejects the donation with the screening id and signs in the reason", async () => {
     const { deps, store, provider, transition } = makeDeps();
     provider.reply = async () => ({
@@ -199,6 +212,7 @@ describe("screenDraftPhoto", () => {
       verdict: ScreeningVerdict.FLAG,
       screeningId: expect.any(String),
       donationStatus: "REJECTED",
+      reason: "Photo failed visual screening: mold, pest droppings.",
     });
     expect(store.screenings).toHaveLength(1);
     expect(store.screenings[0]).toMatchObject({
@@ -238,7 +252,11 @@ describe("screenDraftPhoto", () => {
 
     const result = await screenDraftPhoto(deps, { donorId: DONOR_ID, donationId: DONATION_ID });
 
-    expect(result.ok && result.donationStatus).toBe("REJECTED");
+    expect(result).toMatchObject({
+      ok: true,
+      donationStatus: "REJECTED",
+      reason: "Photo failed visual screening.",
+    });
     expect(transition.calls[0].reason).toBe("Photo failed visual screening.");
   });
 
