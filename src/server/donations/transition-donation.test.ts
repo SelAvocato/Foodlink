@@ -255,7 +255,7 @@ describe("transitionDonation matrix", () => {
       .rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
     await expect(
       transitionDonation({ store: store("ACCEPTED") }, "donation-1", "ASSIGNED", admin, { volunteerId: "ghost-volunteer" }),
-    ).rejects.toMatchObject({ code: "MISSING_PAYLOAD" });
+    ).rejects.toMatchObject({ code: "VOLUNTEER_NOT_ACTIVE" });
   });
 
   it("lets the system expire posted, accepted and assigned donations only after pickup_end", async () => {

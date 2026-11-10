@@ -1,6 +1,7 @@
 import type { DonationStatus } from "@/contracts/enums";
 import type { TransitionDonationPayload } from "@/contracts/donation";
 import { DonationTransitionError } from "@/server/donations/transition-donation";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export interface DueDonationStore {
   listDue(limit: number): Promise<Array<{ donationId: string; status: DonationStatus; pickupEnd: Date }>>;
@@ -40,7 +41,7 @@ export async function expireDueDonations(
         skipped += 1;
         continue;
       }
-      console.error("Expiry cron failed for a donation", { donationId: row.donationId, error });
+      console.error("Expiry cron failed for a donation", { donationId: row.donationId, ...safeErrorSummary(error) });
       failed += 1;
     }
   }

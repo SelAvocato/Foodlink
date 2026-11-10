@@ -20,8 +20,11 @@ jobs:
     if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Expire due donations
+        env:
+          CRON_BASE_URL: ${{ secrets.CRON_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          response=$(curl -sS -o body.json -w "%{http_code}" -X POST "${{ secrets.CRON_BASE_URL }}/api/cron/expire-donations" -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" -H "content-type: application/json")
+          response=$(curl -sS -o body.json -w "%{http_code}" -X POST "$CRON_BASE_URL/api/cron/expire-donations" -H "authorization: Bearer $CRON_SECRET" -H "content-type: application/json")
           cat body.json
           [ "$response" = "200" ]
 
@@ -31,7 +34,10 @@ jobs:
     if: github.event.schedule == '0 3 * * *'
     steps:
       - name: Daily cleanup
+        env:
+          CRON_BASE_URL: ${{ secrets.CRON_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          response=$(curl -sS -o body.json -w "%{http_code}" -X POST "${{ secrets.CRON_BASE_URL }}/api/cron/cleanup" -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" -H "content-type: application/json")
+          response=$(curl -sS -o body.json -w "%{http_code}" -X POST "$CRON_BASE_URL/api/cron/cleanup" -H "authorization: Bearer $CRON_SECRET" -H "content-type: application/json")
           cat body.json
           [ "$response" = "200" ]

@@ -95,10 +95,12 @@ describe("POST /api/admin/donations/[id]/assign", () => {
         );
     });
 
-    it("returns 400 when the volunteer is not active", async () => {
-        mocks.transitionDonation.mockRejectedValue(new mocks.DonationTransitionError("MISSING_PAYLOAD", "Volunteer must be ACTIVE"));
+    it("returns 422 when the volunteer is not active or unknown", async () => {
+        mocks.transitionDonation.mockRejectedValue(new mocks.DonationTransitionError("VOLUNTEER_NOT_ACTIVE", "Volunteer must be ACTIVE"));
         const response = await POST(request({ volunteerId }), context);
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(422);
+        const body = await response.json();
+        expect(body.error).toBe("VOLUNTEER_NOT_ACTIVE");
     });
 
     it("returns 409 when the donation is not assignable", async () => {

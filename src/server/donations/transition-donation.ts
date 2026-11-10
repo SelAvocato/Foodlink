@@ -26,7 +26,7 @@ const exits = new Set<DonationStatus>(["REJECTED", "DECLINED", "REJECTED_AT_PICK
 
 export class DonationTransitionError extends Error {
   constructor(
-    public readonly code: "NOT_FOUND" | "INVALID_TRANSITION" | "FORBIDDEN_ACTOR" | "MISSING_PAYLOAD",
+    public readonly code: "NOT_FOUND" | "INVALID_TRANSITION" | "FORBIDDEN_ACTOR" | "MISSING_PAYLOAD" | "VOLUNTEER_NOT_ACTIVE",
     message: string,
   ) {
     super(message);
@@ -103,7 +103,7 @@ export async function transitionDonation(
         throw new DonationTransitionError("MISSING_PAYLOAD", "A volunteer and actor are required when assigning");
       }
       const volunteer = await tx.getActiveVolunteer(payload.volunteerId);
-      if (!volunteer) throw new DonationTransitionError("MISSING_PAYLOAD", "Volunteer must be ACTIVE");
+      if (!volunteer) throw new DonationTransitionError("VOLUNTEER_NOT_ACTIVE", "Volunteer must be ACTIVE");
       await tx.insertAssignment({ donationId: id, volunteerId: volunteer.id, assignedById: actor.id, assignedAt: now });
     }
     if (exits.has(to)) {

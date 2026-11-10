@@ -3,6 +3,7 @@ import { errorResponse } from "@/server/http/errors";
 import { isCronAuthorized } from "@/server/cron/cron-auth";
 import { expireDueDonations } from "@/server/expiry/expire-due-donations";
 import { prismaExpiryStore, prismaExpiryTransition } from "@/server/expiry/prisma-expiry-store";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error("Expiry cron failed", { error });
+    console.error("Expiry cron failed", { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The expiry run could not be completed.", 500);
   }
 }

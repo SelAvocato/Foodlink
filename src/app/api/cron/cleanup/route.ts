@@ -3,6 +3,7 @@ import { errorResponse } from "@/server/http/errors";
 import { isCronAuthorized } from "@/server/cron/cron-auth";
 import { runCleanup } from "@/server/cleanup/run-cleanup";
 import { prismaCleanupStore } from "@/server/cleanup/prisma-cleanup-store";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     const result = await runCleanup({ store: prismaCleanupStore });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error("Cleanup cron failed", { error });
+    console.error("Cleanup cron failed", { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The cleanup run could not be completed.", 500);
   }
 }
