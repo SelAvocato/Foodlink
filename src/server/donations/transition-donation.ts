@@ -2,6 +2,7 @@ import "server-only";
 
 import { donation_status } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
+import { writeAuditLog } from "@/server/audit";
 import type {
   DonationActor,
   TransitionDonationPayload,
@@ -34,7 +35,12 @@ export class DonationTransitionError extends Error {
 }
 
 function requireReason(to: DonationStatus, actor: DonationActor | null, reason?: string) {
-  if (to === "DECLINED" || to === "REJECTED_AT_PICKUP" || (to === "CANCELLED" && actor?.role === "ADMIN")) {
+  if (
+    to === "DECLINED" ||
+    to === "REJECTED_AT_PICKUP" ||
+    (to === "REJECTED" && actor?.role === "ADMIN") ||
+    (to === "CANCELLED" && actor?.role === "ADMIN")
+  ) {
     if (!reason?.trim()) throw new DonationTransitionError("MISSING_PAYLOAD", "A reason is required");
   }
 }
@@ -157,7 +163,7 @@ export const prismaTransitionStore: TransitionStore = {
       async insertExit(input) { await tx.donation_exits.create({ data: { donation_id: input.donationId, exit_status: donation_status[input.status], actor_user_id: input.actorId, actor_role: input.actorRole, reason: input.reason, screening_id: input.screeningId } }); },
       async insertTracking(input) { await tx.donation_tracking_events.create({ data: { donation_id: input.donationId, from_status: donation_status[input.from], to_status: donation_status[input.to], actor_user_id: input.actorId, event_note: input.note, metadata: input.metadata } }); },
       async insertNotifications(rows) { await tx.notifications.createMany({ data: rows.map((row) => ({ user_id: row.userId, notification_type: row.type, title: row.title, body: row.body, related_donation_id: row.donationId })) }); },
-      async insertAudit(input) { await tx.audit_logs.create({ data: { actor_user_id: input.actorId, action: "DONATION_TRANSITION", target_type: "DONATION", target_id: input.targetId, details: input.details } }); },
+      async insertAudit(input) { await writeAuditLog({ actorUserId: input.actorId, action: "DONATION_TRANSITION", targetType: "DONATION", targetId: input.targetId, details: input.details }, tx); },
     };
     return work(adapter);
   }, { maxWait: 10000, timeout: 30000 }),

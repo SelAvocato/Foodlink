@@ -18,6 +18,7 @@ export const serverSchema = z.object({
     SUPABASE_SECRET_KEY: z.string().min(1, "cannot be empty"),
     SUPABASE_JWKS_URL: webUrl,
     SUPABASE_STORAGE_BUCKET: z.string().min(1, "cannot be empty"),
+    CRON_SECRET: z.string().min(32, "must be at least 32 characters"),
 });
 
 /** Variables that are safe to expose to the browser. They must start with NEXT_PUBLIC_. */

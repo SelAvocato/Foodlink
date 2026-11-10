@@ -7,6 +7,8 @@ import {
     transitionDonation,
 } from "@/server/donations/transition-donation";
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
+import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { parseJsonBody } from "@/server/http/parse-json";
 
 export const runtime = "nodejs";
 
@@ -17,10 +19,6 @@ const transitionBodySchema = z.strictObject({
     volunteerId: z.uuid().optional(),
 });
 
-function errorResponse(error: string, message: string, status: number, details?: unknown) {
-    return NextResponse.json({ error, message, ...(details === undefined ? {} : { details }) }, { status });
-}
-
 export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
@@ -30,7 +28,7 @@ export async function POST(
         actor = await requireRole(["ADMIN"]);
     } catch (error) {
         if (error instanceof AuthorizationError) {
-            return errorResponse(error.code, error.message, error.code === "UNAUTHENTICATED" ? 401 : 403);
+            return authErrorResponse(error);
         }
         console.error("Donation transition authorization failed", { error });
         return errorResponse("INTERNAL_ERROR", "Authorization could not be verified.", 500);
@@ -41,21 +39,9 @@ export async function POST(
         return errorResponse("INVALID_REQUEST", "The donation id is invalid.", 400);
     }
 
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return errorResponse("INVALID_REQUEST", "Send a valid JSON request body.", 400);
-    }
-
-    const parsed = transitionBodySchema.safeParse(body);
-    if (!parsed.success) {
-        return errorResponse(
-            "INVALID_REQUEST",
-            "The transition request is invalid.",
-            400,
-            z.flattenError(parsed.error),
-        );
+    const parsed = await parseJsonBody(request, transitionBodySchema, "The transition request is invalid.");
+    if (!parsed.ok) {
+        return parsed.response;
     }
 
     try {
@@ -70,7 +56,7 @@ export async function POST(
         return NextResponse.json(result, { status: 200 });
     } catch (error) {
         if (error instanceof AuthorizationError) {
-            return errorResponse(error.code, error.message, error.code === "UNAUTHENTICATED" ? 401 : 403);
+            return authErrorResponse(error);
         }
         if (error instanceof DonationTransitionError) {
             const status =
@@ -80,7 +66,7 @@ export async function POST(
                 400;
             return errorResponse(error.code, error.message, status);
         }
-        console.error("Donation transition failed", { donationId: id, error });
+        console.error("Donation transition failed", { error });
         return errorResponse("INTERNAL_ERROR", "The donation transition could not be completed.", 500);
     }
 }

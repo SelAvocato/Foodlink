@@ -50,6 +50,9 @@ export async function GET(
     }
     // Ids and safe error tokens only: the signed URL and the storage key must never reach the log.
     console.error("Proof URL failed", { userId, documentId, ...safeErrorSummary(error) });
+    if (error instanceof Error && error.message === "Invalid storage key") {
+      return errorResponse("NOT_FOUND", "The proof file is not available.", 404);
+    }
     return errorResponse("INTERNAL_ERROR", "The proof URL could not be created.", 500);
   }
 }
