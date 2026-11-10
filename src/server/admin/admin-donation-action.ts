@@ -10,6 +10,7 @@ import {
 } from "@/server/donations/transition-donation";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
 import { parseJsonBody } from "@/server/http/parse-json";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export type AdminDonationActionConfig<Body extends z.ZodType> = {
   to: DonationStatus;
@@ -55,10 +56,11 @@ export async function adminDonationAction<Body extends z.ZodType>(
         error.code === "NOT_FOUND" ? 404 :
         error.code === "FORBIDDEN_ACTOR" ? 403 :
         error.code === "INVALID_TRANSITION" ? 409 :
+        error.code === "VOLUNTEER_NOT_ACTIVE" ? 422 :
         400;
       return errorResponse(error.code, error.message, status);
     }
-    console.error(`${config.logLabel} failed`, { error });
+    console.error(`${config.logLabel} failed`, { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", config.internalMessage, 500);
   }
 }
