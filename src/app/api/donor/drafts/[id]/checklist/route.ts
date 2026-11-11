@@ -5,6 +5,7 @@ import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { getChecklist, saveChecklist } from "@/server/checklist/donation-checklist";
 import { prismaChecklistStore } from "@/server/checklist/prisma-checklist-store";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -74,7 +75,7 @@ export async function PUT(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Checklist save failed", { donationId, error });
+    console.error("Checklist save failed", { donationId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The checklist could not be saved.", 500);
   }
 }
@@ -105,7 +106,7 @@ export async function GET(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Checklist read failed", { donationId, error });
+    console.error("Checklist read failed", { donationId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The checklist could not be loaded.", 500);
   }
 }

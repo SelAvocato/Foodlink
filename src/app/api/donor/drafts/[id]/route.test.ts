@@ -221,7 +221,7 @@ describe("PATCH /api/donor/drafts/[id]", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Draft update failed");
-    expect(details).toMatchObject({ donationId: VALID_ID, error: expect.any(Error) });
+    expect(details).toMatchObject({ donationId: VALID_ID, errorName: "Error" });
     consoleError.mockRestore();
   });
 });
@@ -332,7 +332,7 @@ describe("DELETE /api/donor/drafts/[id]", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Draft discard failed");
-    expect(details).toMatchObject({ donationId: VALID_ID, error: expect.any(Error) });
+    expect(details).toMatchObject({ donationId: VALID_ID, errorName: "Error" });
     consoleError.mockRestore();
   });
 });
