@@ -4,6 +4,7 @@ import { listPendingUsers } from "@/server/admin/pending-users";
 import { prismaPendingUsersStore } from "@/server/admin/prisma-pending-users-store";
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Pending user list failed", { error });
+    console.error("Pending user list failed", { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The pending user list could not be loaded.", 500);
   }
 }

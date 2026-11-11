@@ -5,6 +5,7 @@ import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { createDraft, listDrafts } from "@/server/drafts/donation-drafts";
 import { prismaDraftStore } from "@/server/drafts/prisma-draft-store";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Draft creation failed", { error });
+    console.error("Draft creation failed", { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The draft could not be created.", 500);
   }
 }
@@ -75,7 +76,7 @@ export async function GET() {
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Draft list failed", { error });
+    console.error("Draft list failed", { ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The draft list could not be loaded.", 500);
   }
 }
