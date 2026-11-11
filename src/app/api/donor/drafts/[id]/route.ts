@@ -5,6 +5,7 @@ import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { discardDraft, updateDraft } from "@/server/drafts/donation-drafts";
 import { prismaDraftStore } from "@/server/drafts/prisma-draft-store";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -77,7 +78,7 @@ export async function PATCH(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Draft update failed", { donationId, error });
+    console.error("Draft update failed", { donationId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The draft could not be updated.", 500);
   }
 }
@@ -107,7 +108,7 @@ export async function DELETE(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Draft discard failed", { donationId, error });
+    console.error("Draft discard failed", { donationId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The draft could not be discarded.", 500);
   }
 }

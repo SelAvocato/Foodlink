@@ -190,7 +190,7 @@ describe("POST /api/admin/users/[id]/review", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Account review failed");
-    expect(details).toMatchObject({ targetId: VALID_ID, error: expect.any(Error) });
+    expect(details).toMatchObject({ targetId: VALID_ID, errorName: "Error" });
     consoleError.mockRestore();
   });
 });

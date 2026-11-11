@@ -240,7 +240,7 @@ describe("PUT /api/donor/drafts/[id]/checklist", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Checklist save failed");
-    expect(details).toMatchObject({ donationId: VALID_ID, error: expect.any(Error) });
+    expect(details).toMatchObject({ donationId: VALID_ID, errorName: "Error" });
     consoleError.mockRestore();
   });
 });
@@ -339,7 +339,7 @@ describe("GET /api/donor/drafts/[id]/checklist", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     const [label, details] = consoleError.mock.calls[0];
     expect(label).toBe("Checklist read failed");
-    expect(details).toMatchObject({ donationId: VALID_ID, error: expect.any(Error) });
+    expect(details).toMatchObject({ donationId: VALID_ID, errorName: "Error" });
     consoleError.mockRestore();
   });
 });

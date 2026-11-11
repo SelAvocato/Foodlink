@@ -5,6 +5,7 @@ import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
 import { prismaReviewStore } from "@/server/review/prisma-review-store";
 import { reviewAccount } from "@/server/review/review-account";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,7 @@ export async function POST(
     if (error instanceof AuthorizationError) {
       return authErrorResponse(error);
     }
-    console.error("Account review failed", { targetId, error });
+    console.error("Account review failed", { targetId, ...safeErrorSummary(error) });
     return errorResponse("INTERNAL_ERROR", "The account review could not be completed.", 500);
   }
 }
