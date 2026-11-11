@@ -112,4 +112,20 @@ describe("POST /api/donations/[id]/transition", () => {
         );
         expect(response.status).toBe(403);
     });
+
+    it("maps an inactive or unknown volunteer to 422", async () => {
+        const serviceError = new mocks.DonationTransitionError("VOLUNTEER_NOT_ACTIVE", "Volunteer must be ACTIVE");
+        mocks.transitionDonation.mockRejectedValue(serviceError);
+        const response = await POST(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({ to: "ASSIGNED", volunteerId: "22222222-2222-4222-8222-222222222222" }),
+                headers: { "content-type": "application/json" },
+            }),
+            context,
+        );
+        expect(response.status).toBe(422);
+        const body = await response.json();
+        expect(body.error).toBe("VOLUNTEER_NOT_ACTIVE");
+    });
 });

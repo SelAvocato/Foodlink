@@ -9,6 +9,8 @@ import {
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
 import { parseJsonBody } from "@/server/http/parse-json";
+import { transitionErrorResponse } from "@/server/donations/transition-error-response";
+import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
 
@@ -30,7 +32,7 @@ export async function POST(
         if (error instanceof AuthorizationError) {
             return authErrorResponse(error);
         }
-        console.error("Donation transition authorization failed", { error });
+        console.error("Donation transition authorization failed", { ...safeErrorSummary(error) });
         return errorResponse("INTERNAL_ERROR", "Authorization could not be verified.", 500);
     }
 
@@ -59,15 +61,9 @@ export async function POST(
             return authErrorResponse(error);
         }
         if (error instanceof DonationTransitionError) {
-            const status =
-                error.code === "NOT_FOUND" ? 404 :
-                error.code === "FORBIDDEN_ACTOR" ? 403 :
-                error.code === "INVALID_TRANSITION" ? 409 :
-                error.code === "VOLUNTEER_NOT_ACTIVE" ? 422 :
-                400;
-            return errorResponse(error.code, error.message, status);
+            return transitionErrorResponse(error);
         }
-        console.error("Donation transition failed", { error });
+        console.error("Donation transition failed", { ...safeErrorSummary(error) });
         return errorResponse("INTERNAL_ERROR", "The donation transition could not be completed.", 500);
     }
 }
