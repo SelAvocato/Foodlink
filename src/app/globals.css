@@ -4,12 +4,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  FoodLink foundations (p1):
+  - Primitive palette: #176448 #182D27 #63746D #F5F7F5 #EAF4EE #FFF4DE #FCEDEB
+  - Semantic aliases bound to the shadcn variable names; keep primitives above
+    derivations (color-mix) so the relationship stays visible.
+  - Status is always written, never conveyed by color alone.
+  - Error text stays beside the field.
+  - Icons use a consistent 24px outline; visible focus, disabled and
+    destructive states on every control; dialogs keep one clear primary action.
+*/
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-inter);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,15 +29,16 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -39,82 +51,140 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-xl);
+  --radius-3xl: var(--radius-xl);
+  --radius-4xl: var(--radius-xl);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Primitives (FoodLink.pdf p1) */
+  --fl-primary: #176448;
+  --fl-ink: #182d27;
+  --fl-muted: #63746d;
+  --fl-canvas: #f5f7f5;
+  --fl-success: #eaf4ee;
+  --fl-warning: #fff4de;
+  --fl-error: #fcedeb;
+  --fl-card: #ffffff;
+
+  /* Semantic aliases */
+  --background: var(--fl-canvas);
+  --foreground: var(--fl-ink);
+  --card: var(--fl-card);
+  --card-foreground: var(--fl-ink);
+  --popover: var(--fl-card);
+  --popover-foreground: var(--fl-ink);
+  --primary: var(--fl-primary);
+  --primary-foreground: #ffffff;
+  --secondary: color-mix(in oklab, var(--fl-canvas), var(--fl-ink) 5%);
+  --secondary-foreground: var(--fl-ink);
+  --muted: color-mix(in oklab, var(--fl-canvas), var(--fl-ink) 5%);
+  --muted-foreground: var(--fl-muted);
+  --accent: color-mix(in oklab, var(--fl-canvas), var(--fl-primary) 8%);
+  --accent-foreground: var(--fl-ink);
+  --destructive: color-mix(in oklab, var(--fl-error), var(--fl-ink) 58%);
+  --destructive-foreground: color-mix(in oklab, var(--fl-error), var(--fl-ink) 78%);
+  --border: color-mix(in oklab, var(--fl-canvas), var(--fl-ink) 14%);
+  --input: color-mix(in oklab, var(--fl-canvas), var(--fl-ink) 18%);
+  --ring: var(--fl-primary);
+
+  /* Status: soft fills, written text required (never color alone) */
+  --success: var(--fl-success);
+  --success-foreground: color-mix(in oklab, var(--fl-success), var(--fl-ink) 72%);
+  --warning: var(--fl-warning);
+  --warning-foreground: color-mix(in oklab, var(--fl-warning), var(--fl-ink) 72%);
+  --error: var(--fl-error);
+  --error-foreground: color-mix(in oklab, var(--fl-error), var(--fl-primary) 68%);
+
+  /* Radius: 8 / 12 / 16 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 16px;
+
+  --chart-1: var(--fl-primary);
+  --chart-2: color-mix(in oklab, var(--fl-primary), #ffffff 35%);
+  --chart-3: color-mix(in oklab, var(--fl-primary), #ffffff 55%);
+  --chart-4: var(--fl-muted);
+  --chart-5: var(--fl-ink);
+
+  --sidebar: var(--fl-card);
+  --sidebar-foreground: var(--fl-ink);
+  --sidebar-primary: var(--fl-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(in oklab, var(--fl-canvas), var(--fl-primary) 8%);
+  --sidebar-accent-foreground: var(--fl-ink);
+  --sidebar-border: color-mix(in oklab, var(--fl-canvas), var(--fl-ink) 14%);
+  --sidebar-ring: var(--fl-primary);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Derived from the same primitives; no separate org-approved dark spec yet */
+  --background: color-mix(in oklab, var(--fl-ink), #000000 45%);
+  --foreground: var(--fl-canvas);
+  --card: var(--fl-ink);
+  --card-foreground: var(--fl-canvas);
+  --popover: var(--fl-ink);
+  --popover-foreground: var(--fl-canvas);
+  --primary: color-mix(in oklab, var(--fl-primary), #ffffff 38%);
+  --primary-foreground: var(--fl-ink);
+  --secondary: color-mix(in oklab, var(--fl-ink), #ffffff 8%);
+  --secondary-foreground: var(--fl-canvas);
+  --muted: color-mix(in oklab, var(--fl-ink), #ffffff 7%);
+  --muted-foreground: color-mix(in oklab, var(--fl-muted), #ffffff 35%);
+  --accent: color-mix(in oklab, var(--fl-ink), var(--fl-primary) 22%);
+  --accent-foreground: var(--fl-canvas);
+  --destructive: color-mix(in oklab, var(--fl-error), #ffffff 6%);
+  --destructive-foreground: color-mix(in oklab, var(--fl-error), var(--fl-ink) 72%);
+  --border: color-mix(in oklab, var(--fl-ink), #ffffff 14%);
+  --input: color-mix(in oklab, var(--fl-ink), #ffffff 18%);
+  --ring: color-mix(in oklab, var(--fl-primary), #ffffff 38%);
+
+  --success: color-mix(in oklab, var(--fl-success), var(--fl-ink) 78%);
+  --success-foreground: var(--fl-success);
+  --warning: color-mix(in oklab, var(--fl-warning), var(--fl-ink) 78%);
+  --warning-foreground: var(--fl-warning);
+  --error: color-mix(in oklab, var(--fl-error), var(--fl-ink) 78%);
+  --error-foreground: var(--fl-error);
+
+  --chart-1: color-mix(in oklab, var(--fl-primary), #ffffff 38%);
+  --chart-2: var(--fl-primary);
+  --chart-3: color-mix(in oklab, var(--fl-primary), #ffffff 55%);
+  --chart-4: color-mix(in oklab, var(--fl-muted), #ffffff 35%);
+  --chart-5: var(--fl-canvas);
+
+  --sidebar: var(--fl-ink);
+  --sidebar-foreground: var(--fl-canvas);
+  --sidebar-primary: color-mix(in oklab, var(--fl-primary), #ffffff 38%);
+  --sidebar-primary-foreground: var(--fl-ink);
+  --sidebar-accent: color-mix(in oklab, var(--fl-ink), var(--fl-primary) 22%);
+  --sidebar-accent-foreground: var(--fl-canvas);
+  --sidebar-border: color-mix(in oklab, var(--fl-ink), #ffffff 14%);
+  --sidebar-ring: color-mix(in oklab, var(--fl-primary), #ffffff 38%);
+}
+
+/* Layout rules (p1): desktop 1440px · tablet 834px · mobile 390px, 20px gutters (mobile) / 32px gutters (≥834px) */
+.app-container {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+@media (min-width: 834px) {
+  .app-container {
+    padding-inline: 32px;
+  }
 }
 
 @layer base {
