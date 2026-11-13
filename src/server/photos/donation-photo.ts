@@ -27,8 +27,8 @@ export type FoodPhotoInsert = {
 export interface PhotoTx {
   /** FOR UPDATE: a retake must not race a status change or a second upload. */
   getDonationLocked(id: string): Promise<PhotoDonation | null>;
-  /** Soft-deletes the donation's active FOOD_PHOTO row, if there is one. */
-  softDeleteActiveFoodPhoto(donationId: string): Promise<void>;
+  /** Soft-deletes the donation's active FOOD_PHOTO row; returns the retired row's storage key, or null if there was none. */
+  softDeleteActiveFoodPhoto(donationId: string): Promise<string | null>;
   insertFoodPhoto(row: FoodPhotoInsert): Promise<{ id: string }>;
   /** A food_screenings row with verdict REVIEW and reviewed_at null for the donation. */
   hasPendingReview(donationId: string): Promise<boolean>;
@@ -61,13 +61,14 @@ export type GetFoodPhotoUrlResult =
 
 /**
  * Best effort: a failed cleanup must not replace the original outcome, and the
- * key never reaches the log.
+ * key never reaches the log — `failure` is a constant label and only the safe
+ * summary of the caught error is logged.
  */
-async function removeUploadedPhoto(storage: PhotoUploadStorage, key: string): Promise<void> {
+async function removePhoto(storage: PhotoUploadStorage, key: string, failure: string): Promise<void> {
   try {
     await storage.removeObject(key);
   } catch (cleanupError) {
-    console.error("saveFoodPhoto: failed to remove the uploaded photo", { ...safeErrorSummary(cleanupError) });
+    console.error(failure, { ...safeErrorSummary(cleanupError) });
   }
 }
 
@@ -109,6 +110,9 @@ export async function saveFoodPhoto(
     data: file.data,
   });
 
+  // The retired key is used only after the transaction has committed; a
+  // rollback must leave the old file alone.
+  let retiredKey: string | null = null;
   let result: SaveFoodPhotoResult;
   try {
     result = await deps.store.transaction(async (tx): Promise<SaveFoodPhotoResult> => {
@@ -132,7 +136,7 @@ export async function saveFoodPhoto(
 
       // The unique partial index donation_images_one_food_photo_uq allows one
       // active FOOD_PHOTO per donation, so a retake retires the old row first.
-      await tx.softDeleteActiveFoodPhoto(donationId);
+      retiredKey = await tx.softDeleteActiveFoodPhoto(donationId);
       const image = await tx.insertFoodPhoto({
         donationId,
         uploadedByUserId: donorId,
@@ -143,11 +147,18 @@ export async function saveFoodPhoto(
       return { ok: true, imageId: image.id };
     });
   } catch (error) {
-    await removeUploadedPhoto(deps.storage, key);
+    await removePhoto(deps.storage, key, "saveFoodPhoto: failed to remove the uploaded photo");
     throw error;
   }
 
-  if (!result.ok) await removeUploadedPhoto(deps.storage, key);
+  if (!result.ok) {
+    await removePhoto(deps.storage, key, "saveFoodPhoto: failed to remove the uploaded photo");
+    return result;
+  }
+  // Commit first, delete second: only now is the replaced file safe to remove.
+  if (retiredKey !== null) {
+    await removePhoto(deps.storage, retiredKey, "saveFoodPhoto: failed to remove the retired photo");
+  }
   return result;
 }
 

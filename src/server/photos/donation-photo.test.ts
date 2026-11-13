@@ -38,6 +38,9 @@ class FakeStore implements PhotoStore {
   insertError: Error | null = null;
   private seq = 0;
 
+  /** Shared with FakeStorage so a test can assert commit-before-remove order. */
+  constructor(private readonly log: string[] = []) {}
+
   seedDonation(id: string, donation: PhotoDonation): void {
     this.donations.set(id, donation);
   }
@@ -56,7 +59,10 @@ class FakeStore implements PhotoStore {
   async transaction<T>(work: (tx: PhotoTx) => Promise<T>): Promise<T> {
     const snapshot = this.images.map((image) => ({ ...image }));
     try {
-      return await work(this.createTx());
+      const result = await work(this.createTx());
+      // The rows are committed here, mirroring the real transaction boundary.
+      this.log.push("commit");
+      return result;
     } catch (error) {
       this.images = snapshot;
       throw error;
@@ -103,11 +109,13 @@ class FakeStore implements PhotoStore {
       getDonationLocked: async (id) =>
         this.lockOverride !== undefined ? this.lockOverride : this.donations.get(id) ?? null,
       softDeleteActiveFoodPhoto: async (donationId) => {
-        for (const image of this.images) {
-          if (image.donationId === donationId && image.deletedAt === null) {
-            image.deletedAt = new Date("2026-11-08T10:00:00.000Z");
-          }
+        const retired = this.images.filter(
+          (image) => image.donationId === donationId && image.deletedAt === null,
+        );
+        for (const image of retired) {
+          image.deletedAt = new Date("2026-11-08T10:00:00.000Z");
         }
+        return retired[0]?.storageKey ?? null;
       },
       insertFoodPhoto: async (row) => {
         if (this.insertError) throw this.insertError;
@@ -134,6 +142,9 @@ class FakeStorage {
   signedForKey: string | null = null;
   signedExpiry: number | null = null;
 
+  /** Shared with FakeStore so a test can assert commit-before-remove order. */
+  constructor(private readonly log: string[] = []) {}
+
   async uploadImage(input: { folder: UploadFolder; contentType: ImageContentType; data: Uint8Array }) {
     this.uploads.push(input);
     return { key: this.key };
@@ -142,6 +153,7 @@ class FakeStorage {
   async removeObject(key: string): Promise<void> {
     if (this.removeError) throw this.removeError;
     this.removed.push(key);
+    this.log.push(`remove:${key}`);
   }
 
   async getSignedUrl(key: string, expiresInSeconds: number): Promise<string> {
@@ -156,7 +168,8 @@ function draftDonation(donorId: string = DONOR_ID): PhotoDonation {
 }
 
 function makeDeps() {
-  return { store: new FakeStore(), storage: new FakeStorage() };
+  const log: string[] = [];
+  return { store: new FakeStore(log), storage: new FakeStorage(log), log };
 }
 
 beforeEach(() => {
@@ -165,7 +178,7 @@ beforeEach(() => {
 
 describe("saveFoodPhoto", () => {
   it("stores one row and one object for the first upload", async () => {
-    const { store, storage } = makeDeps();
+    const { store, storage, log } = makeDeps();
     store.seedDonation(DONATION_ID, draftDonation());
 
     const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
@@ -182,6 +195,8 @@ describe("saveFoodPhoto", () => {
     });
     expect(storage.uploads).toEqual([{ folder: "food", contentType: "image/jpeg", data: JPEG }]);
     expect(storage.removed).toEqual([]);
+    // No old key existed, so nothing but the commit is ever recorded.
+    expect(log).toEqual(["commit"]);
   });
 
   it("soft-deletes the old row on a retake and leaves exactly one active photo", async () => {
@@ -199,9 +214,21 @@ describe("saveFoodPhoto", () => {
     expect(newRow.storageKey).toBe(NEW_KEY);
     expect(newRow.deletedAt).toBeNull();
     expect(store.images.filter((row) => row.deletedAt === null)).toHaveLength(1);
-    // The old object stays in the bucket until a cleanup job exists.
-    expect(storage.removed).toEqual([]);
-    expect(storage.removed).not.toContain(OLD_KEY);
+    // The old object is removed after the commit; only the new one stays.
+    expect(storage.removed).toEqual([OLD_KEY]);
+  });
+
+  it("removes the old object once, after the commit, on a retake", async () => {
+    const { store, storage, log } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-old", storageKey: OLD_KEY });
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result.ok).toBe(true);
+    expect(storage.removed).toEqual([OLD_KEY]);
+    // Commit first, delete second: the removal must never precede the commit.
+    expect(log).toEqual(["commit", `remove:${OLD_KEY}`]);
   });
 
   it.each([
@@ -259,6 +286,21 @@ describe("saveFoodPhoto", () => {
     expect(storage.uploads).toHaveLength(1);
     expect(storage.removed).toEqual([NEW_KEY]);
     expect(store.images).toEqual([]);
+  });
+
+  it("removes only the new object when a review opens at the lock, with an old photo in place", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-old", storageKey: OLD_KEY });
+    store.pendingReviewAtLock = true;
+
+    const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+    expect(result).toEqual({ ok: false, error: "REVIEW_PENDING" });
+    expect(storage.removed).toEqual([NEW_KEY]);
+    expect(storage.removed).not.toContain(OLD_KEY);
+    // The refusal happens before the soft delete, so the old row stays active.
+    expect(store.images[0].deletedAt).toBeNull();
   });
 
   it("allows a retake when the active photo has no screening", async () => {
@@ -367,6 +409,22 @@ describe("saveFoodPhoto", () => {
     expect(store.images).toEqual([]);
   });
 
+  it("removes only the new object when the transaction throws with an old photo in place", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-old", storageKey: OLD_KEY });
+    store.insertError = new Error("insert exploded");
+
+    await expect(
+      saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE }),
+    ).rejects.toThrow("insert exploded");
+
+    // The commit never happened, so the old file must survive the rollback.
+    expect(storage.removed).toEqual([NEW_KEY]);
+    expect(storage.removed).not.toContain(OLD_KEY);
+    expect(store.images[0].deletedAt).toBeNull();
+  });
+
   it("keeps the original error when the cleanup removal also fails, and never logs the key", async () => {
     const { store, storage } = makeDeps();
     store.seedDonation(DONATION_ID, draftDonation());
@@ -414,6 +472,36 @@ describe("saveFoodPhoto", () => {
       expect(Object.keys(details as object)).toEqual(["errorName", "errorCode"]);
       expect(details).toEqual({ errorName: "Error", errorCode: "P2025" });
       expect(JSON.stringify(consoleError.mock.calls)).not.toContain(NEW_KEY);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("keeps the result ok when removing the old object fails, and logs without the key", async () => {
+    const { store, storage } = makeDeps();
+    store.seedDonation(DONATION_ID, draftDonation());
+    store.seedImage({ id: "image-old", storageKey: OLD_KEY });
+    // A storage error can carry the old key and a signed URL in its message.
+    const removalMessage = `remove exploded for ${OLD_KEY} at ${SIGNED_URL}`;
+    storage.removeError = new Error(removalMessage);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const result = await saveFoodPhoto({ store, storage }, { donorId: DONOR_ID, donationId: DONATION_ID, file: FILE });
+
+      // The photo is committed either way; a failed removal only leaves the old file.
+      expect(result).toEqual({ ok: true, imageId: expect.any(String) });
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [label, details] = consoleError.mock.calls[0];
+      expect(label).toBe("saveFoodPhoto: failed to remove the retired photo");
+      expect(details).toEqual({ errorName: "Error" });
+
+      const logged = JSON.stringify(consoleError.mock.calls);
+      expect(logged).not.toContain(OLD_KEY);
+      expect(logged).not.toContain(NEW_KEY);
+      expect(logged).not.toContain(SIGNED_URL);
+      expect(logged).not.toContain(removalMessage);
+      expect(store.images.filter((row) => row.deletedAt === null)).toHaveLength(1);
     } finally {
       consoleError.mockRestore();
     }
