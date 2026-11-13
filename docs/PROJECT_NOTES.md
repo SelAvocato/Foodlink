@@ -135,6 +135,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - A donor cancel notifies nobody: transitionDonation() creates notifications for the donor only (the donor is the actor), so Admin is not told when a donor cancels a POSTED or ACCEPTED donation until the notification phase.
 - A REVIEW verdict keeps the donation in DRAFT and freezes the donor's photo until an Admin decides; the seed has no REVIEW case and the mock provider always passes, so the queue is empty in a fresh environment.
 - The review stamp (reviewed_by_user_id, reviewed_at) is written after the transition because transitionDonation() opens its own transaction; if the stamp fails the donation is already decided and leaves the queue (the queue lists only DRAFT donations) but the screening row has no reviewer, and the route returns 500. The Admin reject reason is stored in donation_exits.reason, not in food_screenings.notes (which holds the AI notes). A stamp that updates no row counts as a failure too (the service throws and the route returns 500).
+- Discarding a draft soft-deletes the donation and retires its active FOOD_PHOTO row in the same transaction, then removes the file from the bucket after the commit (best effort; a failed removal is logged without the key and the file stays).
 
 ## 9. Decision log
 
