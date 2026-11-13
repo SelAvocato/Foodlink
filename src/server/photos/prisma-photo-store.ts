@@ -34,10 +34,19 @@ function createTransactionAdapter(tx: typeof prisma): PhotoTx {
       return locked;
     },
     async softDeleteActiveFoodPhoto(donationId) {
-      await tx.donation_images.updateMany({
+      // The partial unique index donation_images_one_food_photo_uq allows at most
+      // one active FOOD_PHOTO, so the first active row is the row to retire.
+      const active = await tx.donation_images.findFirst({
         where: { donation_id: donationId, image_role: "FOOD_PHOTO", deleted_at: null },
+        select: { id: true, storage_key: true },
+      });
+      if (!active) return null;
+      await tx.donation_images.update({
+        where: { id: active.id },
         data: { deleted_at: new Date() },
       });
+      // The key goes back to the service, which removes the file after the commit.
+      return active.storage_key;
     },
     async insertFoodPhoto(row) {
       return tx.donation_images.create({
