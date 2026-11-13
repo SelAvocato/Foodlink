@@ -1,6 +1,8 @@
 import { DonationStatus } from "@/contracts/enums";
 import type { AccountStatus, DonorType, Role } from "@/contracts/enums";
 import type { CreateDraftInput, UpdateDraftInput } from "@/contracts/donation-draft";
+import { safeErrorSummary } from "@/lib/safe-error";
+import type { Storage } from "@/lib/storage";
 
 const EDITABLE_STATUSES = [DonationStatus.DRAFT, DonationStatus.SCREENED] as const;
 
@@ -29,6 +31,8 @@ export interface DraftTx {
   replaceAllergens(donationId: string, allergenIds: number[]): Promise<void>;
   replaceDietaryTags(donationId: string, tagIds: number[]): Promise<void>;
   softDeleteDraft(id: string, donorId: string, allowedStatuses: readonly DonationStatus[]): Promise<boolean>;
+  /** Retires the donation's active FOOD_PHOTO rows and returns their storage keys (empty if none). */
+  softDeleteActiveFoodPhotos(donationId: string): Promise<string[]>;
 }
 
 /** A row as the list query returns it: donorId and deletedAt exist for filtering only. */
@@ -94,6 +98,21 @@ export type UpdateDraftResult =
     };
 
 export type DiscardDraftResult = { ok: true } | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" };
+
+export type DiscardDraftStorage = Pick<Storage, "removeObject">;
+
+/**
+ * Best effort: a failed removal must not change the outcome of the discard, and
+ * the key never reaches the log. Swallowing the error keeps the loop going with
+ * the remaining keys.
+ */
+async function removeDiscardedPhoto(storage: DiscardDraftStorage, key: string): Promise<void> {
+  try {
+    await storage.removeObject(key);
+  } catch (cleanupError) {
+    console.error("discardDraft: failed to remove the discarded photo", { ...safeErrorSummary(cleanupError) });
+  }
+}
 
 /** Counts must match exactly: an unknown or inactive code never comes back. */
 async function resolveCodes(
@@ -220,12 +239,15 @@ export async function updateDraft(
 }
 
 export async function discardDraft(
-  deps: { store: DraftStore },
+  deps: { store: DraftStore; storage: DiscardDraftStorage },
   args: { donorId: string; donationId: string },
 ): Promise<DiscardDraftResult> {
   const { donorId, donationId } = args;
 
-  return deps.store.transaction(async (tx) => {
+  // The keys are used only after the transaction has committed; a rollback must
+  // leave the files alone.
+  let retiredKeys: string[] = [];
+  const result = await deps.store.transaction(async (tx): Promise<DiscardDraftResult> => {
     const draft = await tx.getDraft(donationId);
     if (!draft || draft.donorId !== donorId) return { ok: false, error: "NOT_FOUND" };
     if (draft.status !== DonationStatus.DRAFT && draft.status !== DonationStatus.SCREENED) {
@@ -234,8 +256,17 @@ export async function discardDraft(
 
     const discarded = await tx.softDeleteDraft(donationId, donorId, EDITABLE_STATUSES);
     if (!discarded) return { ok: false, error: "NOT_EDITABLE" };
+    // The row lock taken by getDraft holds until the commit, so a retake or a
+    // screening cannot add a photo row between the two writes.
+    retiredKeys = await tx.softDeleteActiveFoodPhotos(donationId);
     return { ok: true };
   });
+
+  // Commit first, delete second: only now are the retired files safe to remove.
+  if (result.ok) {
+    for (const key of retiredKeys) await removeDiscardedPhoto(deps.storage, key);
+  }
+  return result;
 }
 
 /**

@@ -5,6 +5,7 @@ import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { discardDraft, updateDraft } from "@/server/drafts/donation-drafts";
 import { prismaDraftStore } from "@/server/drafts/prisma-draft-store";
 import { authErrorResponse, errorResponse } from "@/server/http/errors";
+import { createServerStorage } from "@/server/storage";
 import { safeErrorSummary } from "@/lib/safe-error";
 
 export const runtime = "nodejs";
@@ -98,7 +99,7 @@ export async function DELETE(
     }
 
     const result = await discardDraft(
-      { store: prismaDraftStore },
+      { store: prismaDraftStore, storage: createServerStorage() },
       { donorId: actor.id, donationId: id },
     );
     if (!result.ok) return draftErrorResponse(result.error);

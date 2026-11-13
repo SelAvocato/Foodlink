@@ -18,6 +18,7 @@ vi.mock("@/server/auth/require-role", () => {
 });
 vi.mock("@/server/drafts/donation-drafts", () => ({ updateDraft: vi.fn(), discardDraft: vi.fn() }));
 vi.mock("@/server/drafts/prisma-draft-store", () => ({ prismaDraftStore: {} }));
+vi.mock("@/server/storage", () => ({ createServerStorage: vi.fn(() => ({})) }));
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -289,6 +290,7 @@ describe("DELETE /api/donor/drafts/[id]", () => {
     expect(discardDraft).toHaveBeenCalledTimes(1);
     const [deps, args] = vi.mocked(discardDraft).mock.calls[0];
     expect(deps.store).toBeDefined();
+    expect(deps.storage).toBeDefined();
     expect(args.donorId).toBe("donor-1");
     expect(args.donationId).toBe(VALID_ID);
   });
@@ -314,6 +316,7 @@ describe("DELETE /api/donor/drafts/[id]", () => {
     expect(discardDraft).toHaveBeenCalledTimes(1);
     const [deps, args] = vi.mocked(discardDraft).mock.calls[0];
     expect(deps.store).toBeDefined();
+    expect(deps.storage).toBeDefined();
     expect(args.donorId).toBe("donor-1");
     expect(args.donationId).toBe(VALID_ID);
   });

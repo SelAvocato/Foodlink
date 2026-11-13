@@ -114,6 +114,19 @@ function createTransactionAdapter(tx: typeof prisma): DraftTx {
       });
       return updated.count === 1;
     },
+    async softDeleteActiveFoodPhotos(donationId) {
+      const active = await tx.donation_images.findMany({
+        where: { donation_id: donationId, image_role: "FOOD_PHOTO", deleted_at: null },
+        select: { id: true, storage_key: true },
+      });
+      if (active.length === 0) return [];
+      await tx.donation_images.updateMany({
+        where: { id: { in: active.map((row) => row.id) } },
+        data: { deleted_at: new Date() },
+      });
+      // The keys go back to the service, which removes the files after the commit.
+      return active.map((row) => row.storage_key);
+    },
   };
 }
 

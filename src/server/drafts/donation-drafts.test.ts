@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AccountStatus, DonationStatus, DonorType, Role } from "@/contracts/enums";
 import {
   createDraftSchema,
@@ -30,6 +30,10 @@ type StoredDraft = InsertRow & {
   createdAt: Date;
   updatedAt: Date;
 };
+type StoredPhoto = { donationId: string; storageKey: string; imageRole: string; deletedAt: Date | null };
+
+const OLD_KEY = "food/22222222-2222-4222-8222-222222222222.jpg";
+const SECOND_KEY = "food/44444444-4444-4444-8444-444444444444.jpg";
 
 /**
  * In-memory store. Rows are replaced, never mutated, so the array snapshot restores on throw.
@@ -42,6 +46,7 @@ class FakeDraftStore implements DraftStore {
   allergens: SeedCodeRow[] = [];
   tags: SeedCodeRow[] = [];
   drafts: StoredDraft[] = [];
+  photos: StoredPhoto[] = [];
   insertedRows: InsertRow[] = [];
   statusWrites: string[] = [];
   getDraftCalls = 0;
@@ -49,6 +54,10 @@ class FakeDraftStore implements DraftStore {
   writesBeforeGetDraft = 0;
   updateRace = false;
   mmBoom = false;
+  /** Retires the photo rows, then throws, to prove a rollback removes no file. */
+  photoRetireBoom = false;
+  /** Shared with FakeStorage so a test can assert commit-before-remove order. */
+  log: string[] = [];
   private seq = 0;
 
   private nextId(): string {
@@ -69,11 +78,12 @@ class FakeDraftStore implements DraftStore {
       allergens: [...this.allergens],
       tags: [...this.tags],
       drafts: [...this.drafts],
+      photos: [...this.photos],
       insertedRows: [...this.insertedRows],
       statusWrites: [...this.statusWrites],
     };
     try {
-      return await work({
+      const result = await work({
         getDonor: async (userId) => {
           const user = this.users.find((candidate) => candidate.id === userId && !candidate.deleted);
           return user ? { role: user.role, status: user.status, donorType: user.donorType } : null;
@@ -164,13 +174,34 @@ class FakeDraftStore implements DraftStore {
           this.drafts[index] = { ...current, deletedAt: new Date() };
           return true;
         },
+        softDeleteActiveFoodPhotos: async (donationId) => {
+          const keys: string[] = [];
+          // Rows are replaced, never mutated, so the snapshot restores on throw.
+          this.photos = this.photos.map((photo) => {
+            if (
+              photo.donationId !== donationId ||
+              photo.imageRole !== "FOOD_PHOTO" ||
+              photo.deletedAt !== null
+            ) {
+              return photo;
+            }
+            keys.push(photo.storageKey);
+            return { ...photo, deletedAt: new Date("2026-11-13T10:00:00.000Z") };
+          });
+          if (this.photoRetireBoom) throw new Error("photo retire exploded");
+          return keys;
+        },
       });
+      // The rows are committed here, mirroring the real transaction boundary.
+      this.log.push("commit");
+      return result;
     } catch (error) {
       this.users = snapshot.users;
       this.categories = snapshot.categories;
       this.allergens = snapshot.allergens;
       this.tags = snapshot.tags;
       this.drafts = snapshot.drafts;
+      this.photos = snapshot.photos;
       this.insertedRows = snapshot.insertedRows;
       this.statusWrites = snapshot.statusWrites;
       throw error;
@@ -206,6 +237,20 @@ class FakeDraftStore implements DraftStore {
 const DONOR_ID = "donor-1";
 const OTHER_DONOR_ID = "donor-2";
 
+/** The storage dep for discardDraft: it shares the store's log for order assertions. */
+class FakeStorage {
+  removed: string[] = [];
+  removeError: Error | null = null;
+
+  constructor(private readonly log: string[] = []) {}
+
+  async removeObject(key: string): Promise<void> {
+    if (this.removeError) throw this.removeError;
+    this.removed.push(key);
+    this.log.push(`remove:${key}`);
+  }
+}
+
 function makeStore(): FakeDraftStore {
   const store = new FakeDraftStore();
   store.users.push(
@@ -220,6 +265,23 @@ function makeStore(): FakeDraftStore {
   store.allergens.push({ id: 11, code: "PEANUTS", isActive: true }, { id: 12, code: "SESAME", isActive: true });
   store.tags.push({ id: 21, code: "HALAL", isActive: true }, { id: 22, code: "VEGAN", isActive: true });
   return store;
+}
+
+/** The deps for discardDraft: the store plus a storage sharing its log. */
+function makeDeps(store: FakeDraftStore): { store: FakeDraftStore; storage: FakeStorage } {
+  return { store, storage: new FakeStorage(store.log) };
+}
+
+function seedPhoto(store: FakeDraftStore, overrides: Partial<StoredPhoto> = {}): StoredPhoto {
+  const photo: StoredPhoto = {
+    donationId: "draft-1",
+    storageKey: OLD_KEY,
+    imageRole: "FOOD_PHOTO",
+    deletedAt: null,
+    ...overrides,
+  };
+  store.photos.push(photo);
+  return photo;
 }
 
 function createInput(overrides: Partial<CreateDraftInput> = {}): CreateDraftInput {
@@ -585,7 +647,7 @@ describe("discardDraft", () => {
     const store = makeStore();
     seedDraft(store);
 
-    const result = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
+    const result = await discardDraft(makeDeps(store), { donorId: DONOR_ID, donationId: "draft-1" });
     expect(result).toEqual({ ok: true });
     expect(store.drafts).toHaveLength(1);
     expect(store.drafts[0]?.deletedAt).toBeInstanceOf(Date);
@@ -593,37 +655,155 @@ describe("discardDraft", () => {
     expect(store.statusWrites).toHaveLength(0);
   });
 
+  it("retires the photo row and removes its file once, after the commit", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    seedPhoto(store);
+    const { storage } = makeDeps(store);
+
+    const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
+    expect(result).toEqual({ ok: true });
+    expect(store.photos).toHaveLength(1);
+    expect(store.photos[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(storage.removed).toEqual([OLD_KEY]);
+    // Commit first, delete second: the removal must never precede the commit.
+    expect(store.log).toEqual(["commit", `remove:${OLD_KEY}`]);
+  });
+
+  it("removes no file when the draft has no photo", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    const { storage } = makeDeps(store);
+
+    const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
+    expect(result).toEqual({ ok: true });
+    expect(storage.removed).toEqual([]);
+    expect(store.log).toEqual(["commit"]);
+  });
+
+  it("removes both files when two photo rows are active (defensive)", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    seedPhoto(store, { storageKey: OLD_KEY });
+    seedPhoto(store, { storageKey: SECOND_KEY });
+    const { storage } = makeDeps(store);
+
+    const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
+    expect(result).toEqual({ ok: true });
+    expect(storage.removed).toEqual([OLD_KEY, SECOND_KEY]);
+    expect(store.photos.every((photo) => photo.deletedAt instanceof Date)).toBe(true);
+  });
+
   it("returns NOT_FOUND when discarding the same draft twice", async () => {
     const store = makeStore();
     seedDraft(store);
+    seedPhoto(store);
+    const deps = makeDeps(store);
 
-    const first = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
-    const second = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
+    const first = await discardDraft(deps, { donorId: DONOR_ID, donationId: "draft-1" });
+    const second = await discardDraft(deps, { donorId: DONOR_ID, donationId: "draft-1" });
 
     expect(first).toEqual({ ok: true });
     expect(second).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(store.drafts).toHaveLength(1);
+    // The file is gone after the first discard; the refusal removes nothing more.
+    expect(deps.storage.removed).toEqual([OLD_KEY]);
   });
 
-  it("returns NOT_FOUND for another donor's draft and a missing id", async () => {
+  it("returns NOT_FOUND for another donor's draft and a missing id, removing nothing", async () => {
     const store = makeStore();
     seedDraft(store, { id: "draft-1", donorId: DONOR_ID });
+    seedPhoto(store);
+    const { storage } = makeDeps(store);
 
-    const wrongOwner = await discardDraft({ store }, { donorId: OTHER_DONOR_ID, donationId: "draft-1" });
-    const missing = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "no-such-draft" });
+    const wrongOwner = await discardDraft({ store, storage }, { donorId: OTHER_DONOR_ID, donationId: "draft-1" });
+    const missing = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "no-such-draft" });
 
     expect(wrongOwner).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(missing).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(store.drafts[0]?.deletedAt).toBeNull();
+    expect(store.photos[0]?.deletedAt).toBeNull();
+    expect(storage.removed).toEqual([]);
   });
 
-  it("returns NOT_EDITABLE for a POSTED donation", async () => {
+  it("returns NOT_EDITABLE for a POSTED donation, removing nothing", async () => {
     const store = makeStore();
     seedDraft(store, { status: "POSTED" });
+    seedPhoto(store);
+    const { storage } = makeDeps(store);
 
-    const result = await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
+    const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
     expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
     expect(store.drafts[0]?.deletedAt).toBeNull();
+    expect(store.photos[0]?.deletedAt).toBeNull();
+    expect(storage.removed).toEqual([]);
+  });
+
+  it("returns NOT_EDITABLE when the conditional update loses the race, removing nothing", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    seedPhoto(store);
+    store.updateRace = true;
+    const { storage } = makeDeps(store);
+
+    const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
+    expect(result).toEqual({ ok: false, error: "NOT_EDITABLE" });
+    expect(store.photos[0]?.deletedAt).toBeNull();
+    expect(storage.removed).toEqual([]);
+    expect(store.log).not.toContain(`remove:${OLD_KEY}`);
+  });
+
+  it("removes nothing when the transaction throws after the photo rows were retired", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    seedPhoto(store);
+    store.photoRetireBoom = true;
+    const { storage } = makeDeps(store);
+
+    await expect(
+      discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" }),
+    ).rejects.toThrow("photo retire exploded");
+
+    // The rollback restored the rows and no commit happened, so no file is touched.
+    expect(storage.removed).toEqual([]);
+    expect(store.photos[0]?.deletedAt).toBeNull();
+    expect(store.drafts[0]?.deletedAt).toBeNull();
+    expect(store.log).toEqual([]);
+  });
+
+  it("keeps ok when removing a file fails, and logs without the key, message or URL", async () => {
+    const store = makeStore();
+    seedDraft(store);
+    seedPhoto(store);
+    const storage = new FakeStorage(store.log);
+    const signedUrl = "https://storage.example.test/object/sign?token=fake-token";
+    const removalMessage = `remove exploded for ${OLD_KEY} at ${signedUrl}`;
+    storage.removeError = new Error(removalMessage);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const result = await discardDraft({ store, storage }, { donorId: DONOR_ID, donationId: "draft-1" });
+
+      // The discard is committed either way; a failed removal only leaves the file.
+      expect(result).toEqual({ ok: true });
+      expect(store.photos[0]?.deletedAt).toBeInstanceOf(Date);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [label, details] = consoleError.mock.calls[0];
+      expect(label).toBe("discardDraft: failed to remove the discarded photo");
+      expect(details).toEqual({ errorName: "Error" });
+
+      const logged = JSON.stringify(consoleError.mock.calls);
+      expect(logged).not.toContain(OLD_KEY);
+      expect(logged).not.toContain(removalMessage);
+      expect(logged).not.toContain(signedUrl);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 
@@ -734,7 +914,7 @@ describe("store rules", () => {
       donationId: "draft-1",
       input: updateInput({ foodName: "Renamed", dietaryTagCodes: ["HALAL"] }),
     });
-    await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
+    await discardDraft(makeDeps(store), { donorId: DONOR_ID, donationId: "draft-1" });
 
     expect(store.statusWrites).toHaveLength(0);
     expect(store.drafts[0]?.status).toBe("DRAFT");
@@ -755,7 +935,7 @@ describe("store rules", () => {
     expect(store.getDraftCalls).toBe(1);
     expect(store.writesBeforeGetDraft).toBe(0);
 
-    await discardDraft({ store }, { donorId: DONOR_ID, donationId: "draft-1" });
+    await discardDraft(makeDeps(store), { donorId: DONOR_ID, donationId: "draft-1" });
     expect(store.drafts[0]?.deletedAt).toBeInstanceOf(Date);
     expect(store.getDraftCalls).toBe(2);
     expect(store.writesBeforeGetDraft).toBe(0);
