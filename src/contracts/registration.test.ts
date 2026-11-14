@@ -63,6 +63,55 @@ describe("donorRegistrationSchema", () => {
     expect(donorRegistrationSchema.safeParse({ ...individual, address: { ...address, latitude: 91 } }).success).toBe(false);
     expect(donorRegistrationSchema.safeParse({ ...individual, address: { ...address, longitude: -181 } }).success).toBe(false);
   });
+  it("strips markup and control characters from the names and the address", () => {
+    const parsed = donorRegistrationSchema.parse({
+      ...establishment,
+      fullName: "  <b>Juan</b> Dela\u0000Cruz  ",
+      businessName: "Juan's <Bakery>",
+      address: { ...address, streetLine1: "123 <Katipunan> Ave", city: "Quezon <City>" },
+    });
+    expect(parsed.fullName).toBe("bJuan/b Dela Cruz");
+    if (parsed.donorType === "ESTABLISHMENT") expect(parsed.businessName).toBe("Juan's Bakery");
+    expect(parsed.address.streetLine1).toBe("123 Katipunan Ave");
+    expect(parsed.address.city).toBe("Quezon City");
+  });
+  it("rejects a required name or address that is only markup", () => {
+    expect(donorRegistrationSchema.safeParse({ ...establishment, fullName: "<>" }).success).toBe(false);
+    expect(donorRegistrationSchema.safeParse({ ...establishment, businessName: "<>" }).success).toBe(false);
+    expect(donorRegistrationSchema.safeParse({ ...individual, address: { ...address, streetLine1: "<>" } }).success).toBe(false);
+    expect(donorRegistrationSchema.safeParse({ ...individual, address: { ...address, city: "<>" } }).success).toBe(false);
+  });
+  it("strips markup from the optional address fields", () => {
+    const parsed = addressSchema.parse({
+      ...withoutPin,
+      streetLine2: "<Unit> 4B",
+      barangay: "<Loyola> Heights",
+      provinceOrState: "Metro <Manila>",
+      postalCode: "<1108>",
+    });
+    expect(parsed.streetLine2).toBe("Unit 4B");
+    expect(parsed.barangay).toBe("Loyola Heights");
+    expect(parsed.provinceOrState).toBe("Metro Manila");
+    expect(parsed.postalCode).toBe("1108");
+  });
+  it("turns optional address fields that are only markup into undefined", () => {
+    const parsed = addressSchema.parse({
+      ...withoutPin,
+      streetLine2: "<>",
+      barangay: "<>",
+      provinceOrState: "<>",
+      postalCode: "<>",
+    });
+    expect(parsed.streetLine2).toBeUndefined();
+    expect(parsed.barangay).toBeUndefined();
+    expect(parsed.provinceOrState).toBeUndefined();
+    expect(parsed.postalCode).toBeUndefined();
+  });
+  it("counts the length limit after stripping", () => {
+    expect(donorRegistrationSchema.safeParse({ ...individual, fullName: "a".repeat(160) + "<><>" }).success).toBe(
+      true,
+    );
+  });
   it("accepts names up to the database limits", () => {
     expect(
       donorRegistrationSchema.safeParse({ ...establishment, fullName: "a".repeat(160), businessName: "b".repeat(180) }).success,
@@ -107,6 +156,17 @@ describe("volunteerRegistrationSchema", () => {
     expect(result.email).toBe("juan@example.ph");
     expect(result.contactNumber).toBe("09171234567");
     expect(result.availability).toBeUndefined();
+  });
+  it("strips markup from the availability note and counts the limit after stripping", () => {
+    const parsed = volunteerRegistrationSchema.parse({ ...volunteer, availability: "  <Weekends>, mornings  " });
+    expect(parsed.availability).toBe("Weekends, mornings");
+    expect(volunteerRegistrationSchema.parse({ ...volunteer, availability: "<>" }).availability).toBeUndefined();
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, availability: "x".repeat(500) + "<><>" }).success).toBe(
+      true,
+    );
+    expect(volunteerRegistrationSchema.safeParse({ ...volunteer, availability: "x".repeat(502) + "<><>" }).success).toBe(
+      false,
+    );
   });
   it("accepts a volunteer with no availability field", () => {
     const body: Record<string, unknown> = { ...volunteer };

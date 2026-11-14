@@ -1,11 +1,16 @@
 import { z } from "zod";
+import { stripMarkup } from "@/lib/plain-text";
 import { AccountStatus } from "./enums";
 
 /** The Admin's reason is saved in user_reviews.reason and emailed to the user on rejection. */
-const requiredReason = z.string().trim().min(1, "Enter a reason").max(500, "Use at most 500 characters");
+const requiredReason = z
+  .string()
+  .overwrite(stripMarkup)
+  .min(1, "Enter a reason")
+  .max(500, "Use at most 500 characters");
 const optionalReason = z
   .string()
-  .trim()
+  .overwrite(stripMarkup)
   .max(500, "Use at most 500 characters")
   .transform((value) => (value === "" ? undefined : value))
   .optional();

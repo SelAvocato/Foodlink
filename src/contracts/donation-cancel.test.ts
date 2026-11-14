@@ -26,6 +26,24 @@ describe("cancelDonationSchema", () => {
     if (spaces.success) expect(spaces.data.reason).toBeUndefined();
   });
 
+  it("strips markup from the reason", () => {
+    const result = cancelDonationSchema.safeParse({ reason: "  <Too> many \u0000potatoes  " });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.reason).toBe("Too many potatoes");
+  });
+
+  it("turns a reason that is only markup into undefined", () => {
+    const result = cancelDonationSchema.safeParse({ reason: "<>" });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.reason).toBeUndefined();
+  });
+
+  it("counts the length limit after stripping", () => {
+    expect(cancelDonationSchema.safeParse({ reason: "x".repeat(500) + "<><>" }).success).toBe(true);
+  });
+
   it("rejects a reason over 500 characters", () => {
     expect(cancelDonationSchema.safeParse({ reason: "x".repeat(501) }).success).toBe(false);
     expect(cancelDonationSchema.safeParse({ reason: "x".repeat(500) }).success).toBe(true);
