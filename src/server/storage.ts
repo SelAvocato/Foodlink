@@ -2,12 +2,16 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "@/lib/env.server";
+import { withTimeout } from "@/lib/fetch-timeout";
 import { createStorage, type StorageBucket } from "@/lib/storage";
+
+const STORAGE_TIMEOUT_MS = 15_000;
 
 export function createServerStorage() {
     const env = getEnv();
     const client = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
+        global: { fetch: withTimeout(fetch, STORAGE_TIMEOUT_MS) },
     });
     const bucket = client.storage.from(env.SUPABASE_STORAGE_BUCKET);
 
