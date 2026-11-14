@@ -1,15 +1,16 @@
 import { z } from "zod";
+import { stripMarkup, stripMarkupMultiline } from "@/lib/plain-text";
 
 /** Form inputs send "" for an empty optional field. Turn it into undefined so the database gets NULL. */
-const optionalText = (max: number) =>
+const optionalText = (max: number, strip: (value: string) => string = stripMarkup) =>
   z
     .string()
-    .trim()
+    .overwrite(strip)
     .max(max, `Use at most ${max} characters`)
     .transform((value) => (value === "" ? undefined : value))
     .optional();
 
-const foodName = z.string().trim().min(1, "Enter the food name").max(160, "Use at most 160 characters");
+const foodName = z.string().overwrite(stripMarkup).min(1, "Enter the food name").max(160, "Use at most 160 characters");
 const foodCategoryCode = z.string().trim().min(1, "Pick a food category").max(40, "Use at most 40 characters");
 const portions = z
   .number()
@@ -31,7 +32,7 @@ export const createDraftSchema = z.strictObject({
   foodCategoryCode,
   foodName,
   portions,
-  description: optionalText(1000),
+  description: optionalText(1000, stripMarkupMultiline),
   allergenCodes: codeList,
   dietaryTagCodes: codeList,
 });
@@ -50,7 +51,7 @@ export const updateDraftSchema = z
     portions: portions.optional(),
     description: z
       .string()
-      .trim()
+      .overwrite(stripMarkupMultiline)
       .max(1000, "Use at most 1000 characters")
       .transform((value) => (value === "" ? null : value))
       .optional(),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stripMarkup } from "@/lib/plain-text";
 
 /**
  * One Admin decision on a pending REVIEW screening. The screening id comes from
@@ -10,7 +11,7 @@ export const screeningDecisionSchema = z
     decision: z.enum(["PASS", "REJECT"]),
     reason: z
       .string()
-      .trim()
+      .overwrite(stripMarkup)
       .min(1, "Enter a reason")
       .max(500, "Use at most 500 characters")
       .optional(),

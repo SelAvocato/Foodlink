@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stripMarkup } from "@/lib/plain-text";
 import { contactNumber, email, password } from "./auth";
 import { DonorType } from "./enums";
 
@@ -6,15 +7,19 @@ import { DonorType } from "./enums";
 export const PRIVACY_CONSENT_TYPE = "PRIVACY_POLICY";
 export const PRIVACY_POLICY_VERSION = "1.0";
 
-const fullName = z.string().trim().min(2, "Enter your full name").max(160, "Name is too long");
-const businessName = z.string().trim().min(2, "Enter the business name").max(180, "Business name is too long");
+const fullName = z.string().overwrite(stripMarkup).min(2, "Enter your full name").max(160, "Name is too long");
+const businessName = z
+  .string()
+  .overwrite(stripMarkup)
+  .min(2, "Enter the business name")
+  .max(180, "Business name is too long");
 const consent = z.literal(true, { error: "You must accept the Data Privacy Act consent" });
 
 /** Form inputs send "" for an empty optional field. Turn it into undefined so the database gets NULL. */
 const optionalText = (max: number) =>
   z
     .string()
-    .trim()
+    .overwrite(stripMarkup)
     .max(max, `Use at most ${max} characters`)
     .transform((value) => (value === "" ? undefined : value))
     .optional();
@@ -24,10 +29,14 @@ const longitude = z.number().min(-180, "Invalid map pin").max(180, "Invalid map 
 
 /** Mirrors the addresses table in db/baseline/001_schema.sql. */
 const addressFields = {
-  streetLine1: z.string().trim().min(1, "Enter the street address").max(200, "Street address is too long"),
+  streetLine1: z
+    .string()
+    .overwrite(stripMarkup)
+    .min(1, "Enter the street address")
+    .max(200, "Street address is too long"),
   streetLine2: optionalText(200),
   barangay: optionalText(120),
-  city: z.string().trim().min(1, "Enter the city").max(120, "City is too long"),
+  city: z.string().overwrite(stripMarkup).min(1, "Enter the city").max(120, "City is too long"),
   provinceOrState: optionalText(120),
   postalCode: optionalText(20),
   countryCode: z

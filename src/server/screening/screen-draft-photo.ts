@@ -1,6 +1,7 @@
 import { DonationStatus, ScreeningVerdict } from "@/contracts/enums";
 import { providerResultSchema } from "@/contracts/food-screening";
 import type { AllowedImageType } from "@/contracts/image";
+import { stripMarkup } from "@/lib/plain-text";
 import { safeErrorSummary } from "@/lib/safe-error";
 import type { Storage } from "@/lib/storage";
 import type { ScreeningProvider, ScreeningProviderInput } from "./screening-provider";
@@ -104,18 +105,10 @@ const MALFORMED_NOTE = "Provider reply was malformed.";
 const LOW_CONFIDENCE_NOTE = "Confidence below the review threshold.";
 
 const MAX_SIGN_CHARACTERS = 80;
-const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/g;
 
 /** Provider text is shown to people, so strip what could break markup and layout. */
 function cleanSign(value: string): string {
-  return value
-    // A control character becomes a space so words on either side stay apart.
-    .replace(CONTROL_CHARACTERS, " ")
-    .replace(/[<>]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_SIGN_CHARACTERS)
-    .trim();
+  return stripMarkup(value).slice(0, MAX_SIGN_CHARACTERS).trim();
 }
 
 function rejectionReason(signs: readonly string[]): string {

@@ -30,6 +30,36 @@ describe("createDraftSchema", () => {
     expect(createDraftSchema.safeParse({ ...validCreate, foodName: "   " }).success).toBe(false);
   });
 
+  it("strips markup from the food name and the description", () => {
+    const result = createDraftSchema.parse({
+      ...validCreate,
+      foodName: "<Chicken> adobo",
+      description: "Fresh <from> the kitchen",
+    });
+    expect(result.foodName).toBe("Chicken adobo");
+    expect(result.description).toBe("Fresh from the kitchen");
+  });
+
+  it("rejects a food name that is only markup", () => {
+    expect(createDraftSchema.safeParse({ ...validCreate, foodName: "<>" }).success).toBe(false);
+  });
+
+  it("turns a description that is only markup into undefined", () => {
+    const result = createDraftSchema.safeParse({ ...validCreate, description: "<>" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.description).toBeUndefined();
+  });
+
+  it("keeps a line break in the description", () => {
+    const result = createDraftSchema.parse({ ...validCreate, description: "Cooked at 8am\nServe warm" });
+    expect(result.description).toBe("Cooked at 8am\nServe warm");
+  });
+
+  it("counts the length limit after stripping", () => {
+    expect(createDraftSchema.safeParse({ ...validCreate, description: "x".repeat(1000) + "<><>" }).success).toBe(true);
+    expect(createDraftSchema.safeParse({ ...validCreate, foodName: "x".repeat(160) + "<><>" }).success).toBe(true);
+  });
+
   it("rejects a food name over 160 characters", () => {
     expect(createDraftSchema.safeParse({ ...validCreate, foodName: "x".repeat(160) }).success).toBe(true);
     expect(createDraftSchema.safeParse({ ...validCreate, foodName: "x".repeat(161) }).success).toBe(false);
@@ -112,6 +142,33 @@ describe("updateDraftSchema", () => {
     const result = updateDraftSchema.safeParse({ description: "" });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.description).toBeNull();
+  });
+
+  it("strips markup from the food name and the description", () => {
+    const result = updateDraftSchema.parse({ foodName: "  <Pancit>  ", description: "Updated <today>" });
+    expect(result.foodName).toBe("Pancit");
+    expect(result.description).toBe("Updated today");
+  });
+
+  it("rejects a food name that is only markup", () => {
+    expect(updateDraftSchema.safeParse({ foodName: "<>" }).success).toBe(false);
+  });
+
+  it("turns a description that is only markup into null", () => {
+    const result = updateDraftSchema.safeParse({ description: "<>" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.description).toBeNull();
+  });
+
+  it("keeps a line break in the description", () => {
+    expect(updateDraftSchema.parse({ description: "Cooked at 8am\nServe warm" }).description).toBe(
+      "Cooked at 8am\nServe warm",
+    );
+  });
+
+  it("counts the length limit after stripping", () => {
+    expect(updateDraftSchema.safeParse({ description: "x".repeat(1000) + "<><>" }).success).toBe(true);
+    expect(updateDraftSchema.safeParse({ foodName: "x".repeat(160) + "<><>" }).success).toBe(true);
   });
 
   it("rejects invalid values on the fields it does accept", () => {

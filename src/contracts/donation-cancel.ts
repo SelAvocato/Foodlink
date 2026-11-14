@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { stripMarkup } from "@/lib/plain-text";
 
-/** Form inputs send "" for an empty optional reason. Trim it and drop it. */
+/** Form inputs send "" for an empty optional reason. Strip it and drop it. */
 const optionalReason = z
   .string()
-  .trim()
+  .overwrite(stripMarkup)
   .max(500, "Use at most 500 characters")
   .transform((value) => (value === "" ? undefined : value))
   .optional();

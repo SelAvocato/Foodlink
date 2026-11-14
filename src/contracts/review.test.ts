@@ -22,6 +22,22 @@ describe("reviewSchema", () => {
     expect(reviewSchema.safeParse({ action: "REJECT", reason: "x".repeat(500) }).success).toBe(true);
     expect(reviewSchema.safeParse({ action: "REJECT", reason: "x".repeat(501) }).success).toBe(false);
   });
+  it("strips markup from a required and an optional reason", () => {
+    expect(reviewSchema.parse({ action: "REJECT", reason: "  <blurry> ID  " }).reason).toBe("blurry ID");
+    expect(reviewSchema.parse({ action: "APPROVE", reason: "<Resolved> >" }).reason).toBe("Resolved");
+  });
+  it("rejects a required reason that is only markup", () => {
+    for (const action of ["REJECT", "SUSPEND"]) {
+      expect(reviewSchema.safeParse({ action, reason: "<>" }).success).toBe(false);
+    }
+  });
+  it("turns an optional reason that is only markup into undefined", () => {
+    expect(reviewSchema.parse({ action: "APPROVE", reason: "<>" }).reason).toBeUndefined();
+    expect(reviewSchema.parse({ action: "REACTIVATE", reason: "<>" }).reason).toBeUndefined();
+  });
+  it("counts the length limit after stripping", () => {
+    expect(reviewSchema.safeParse({ action: "REJECT", reason: "x".repeat(500) + "<><>" }).success).toBe(true);
+  });
   it("rejects an unknown action and unknown fields", () => {
     expect(reviewSchema.safeParse({ action: "DELETE" }).success).toBe(false);
     expect(reviewSchema.safeParse({ action: "APPROVE", status: "ACTIVE" }).success).toBe(false);
