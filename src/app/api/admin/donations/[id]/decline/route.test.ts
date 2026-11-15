@@ -94,6 +94,21 @@ describe("POST /api/admin/donations/[id]/decline", () => {
         );
     });
 
+    it("strips markup from the reason before the service sees it", async () => {
+        const response = await POST(request({ reason: "<b>Unsafe\u0007 food</b>" }), context);
+        expect(response.status).toBe(200);
+        expect(mocks.transitionDonation).toHaveBeenCalledWith(
+            { store: {} },
+            donationId,
+            "DECLINED",
+            adminActor,
+            { reason: "bUnsafe food/b" },
+        );
+
+        const markupOnly = await POST(request({ reason: "<>" }), context);
+        expect(markupOnly.status).toBe(400);
+    });
+
     it("maps service refusals to 4xx", async () => {
         mocks.transitionDonation.mockRejectedValue(new mocks.DonationTransitionError("MISSING_PAYLOAD", "A reason is required"));
         const missingPayload = await POST(request({ reason: "Unsafe food" }), context);

@@ -99,6 +99,29 @@ describe("POST /api/donations/[id]/transition", () => {
         );
     });
 
+    it("strips markup from eventNote and reason before the service sees them", async () => {
+        const response = await POST(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({
+                    to: "DECLINED",
+                    reason: "<b>Unsafe\u0000 food</b>",
+                    eventNote: "<i>Note\u0001 here</i>",
+                }),
+                headers: { "content-type": "application/json" },
+            }),
+            context,
+        );
+        expect(response.status).toBe(200);
+        expect(mocks.transitionDonation).toHaveBeenCalledWith(
+            { store: {} },
+            "11111111-1111-4111-8111-111111111111",
+            "DECLINED",
+            expect.objectContaining({ id: "admin-1" }),
+            { reason: "bUnsafe food/b", eventNote: "iNote here/i" },
+        );
+    });
+
     it("maps service authorization errors to 403", async () => {
         const serviceError = new mocks.DonationTransitionError("FORBIDDEN_ACTOR", "Donor does not own this donation");
         mocks.transitionDonation.mockRejectedValue(serviceError);

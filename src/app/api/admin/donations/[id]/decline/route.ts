@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { adminDonationAction } from "@/server/admin/admin-donation-action";
+import { stripMarkup } from "@/lib/plain-text";
 
 export const runtime = "nodejs";
 
 const declineBodySchema = z.strictObject({
-  reason: z.string().trim().min(1, "A reason is required.").max(500, "Use at most 500 characters."),
+  reason: z.string().overwrite(stripMarkup).min(1, "A reason is required.").max(500, "Use at most 500 characters."),
 });
 
 export async function POST(
