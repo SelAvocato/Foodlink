@@ -10,6 +10,14 @@ export interface PendingUserDocumentRow {
   deletedAt: Date | null;
 }
 
+/** Only the four address parts the Admin approvals screen shows (Figma p30). */
+export interface PendingUserAddress {
+  streetLine1: string;
+  streetLine2: string | null;
+  barangay: string | null;
+  city: string;
+}
+
 export interface PendingUserRow {
   id: string;
   role: Role;
@@ -19,6 +27,8 @@ export interface PendingUserRow {
   createdAt: Date;
   donorType: DonorType | null;
   businessName: string | null;
+  address: PendingUserAddress | null;
+  privacyConsentAt: Date | null;
   deletedAt: Date | null;
   documents: PendingUserDocumentRow[];
 }
@@ -44,6 +54,8 @@ export interface PendingUser {
   createdAt: Date;
   donorType: DonorType | null;
   businessName: string | null;
+  address: PendingUserAddress | null;
+  privacyConsentAt: Date | null;
   documents: PendingUserDocument[];
 }
 
@@ -71,6 +83,16 @@ export async function listPendingUsers(
       createdAt: row.createdAt,
       donorType: row.donorType,
       businessName: row.businessName,
+      address:
+        row.address === null
+          ? null
+          : {
+              streetLine1: row.address.streetLine1,
+              streetLine2: row.address.streetLine2,
+              barangay: row.address.barangay,
+              city: row.address.city,
+            },
+      privacyConsentAt: row.privacyConsentAt,
       documents: row.documents
         .filter((document) => document.deletedAt === null)
         .map((document) => ({

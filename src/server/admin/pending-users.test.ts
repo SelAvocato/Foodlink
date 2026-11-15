@@ -34,6 +34,13 @@ function user(overrides: Partial<PendingUserRow> = {}): PendingUserRow {
     createdAt: new Date("2026-11-02T00:00:00.000Z"),
     donorType: "ESTABLISHMENT",
     businessName: "Test Bakery Corp",
+    address: {
+      streetLine1: "123 Test Street",
+      streetLine2: "Unit 4",
+      barangay: "Poblacion",
+      city: "Makati",
+    },
+    privacyConsentAt: new Date("2026-11-02T00:00:00.000Z"),
     deletedAt: null,
     documents: [document()],
     ...overrides,
@@ -123,6 +130,7 @@ describe("listPendingUsers", () => {
     const users = await listPendingUsers({ store }, { limit: 50 });
 
     expect(Object.keys(users[0] ?? {}).sort()).toEqual([
+      "address",
       "businessName",
       "createdAt",
       "documents",
@@ -130,6 +138,7 @@ describe("listPendingUsers", () => {
       "email",
       "fullName",
       "id",
+      "privacyConsentAt",
       "role",
     ]);
     expect(Object.keys(users[0]?.documents[0] ?? {}).sort()).toEqual([
@@ -144,6 +153,99 @@ describe("listPendingUsers", () => {
     expect(serialized).not.toContain("secret-key");
     expect(serialized).not.toContain("private-name");
     expect(serialized).not.toContain("secret-hash");
+  });
+
+  it("maps address and privacyConsentAt into the output", async () => {
+    const store = new FakePendingUsersStore();
+    store.rows = [
+      user({
+        address: {
+          streetLine1: "45 Sample Road",
+          streetLine2: null,
+          barangay: "San Antonio",
+          city: "Pasig",
+        },
+        privacyConsentAt: new Date("2026-11-03T09:15:00.000Z"),
+      }),
+    ];
+
+    const users = await listPendingUsers({ store }, { limit: 50 });
+
+    expect(users[0]?.address).toEqual({
+      streetLine1: "45 Sample Road",
+      streetLine2: null,
+      barangay: "San Antonio",
+      city: "Pasig",
+    });
+    expect(users[0]?.privacyConsentAt).toEqual(new Date("2026-11-03T09:15:00.000Z"));
+  });
+
+  it("answers with address null and privacyConsentAt null when the row has neither", async () => {
+    const store = new FakePendingUsersStore();
+    store.rows = [user({ address: null, privacyConsentAt: null })];
+
+    const users = await listPendingUsers({ store }, { limit: 50 });
+
+    expect(users[0]?.address).toBeNull();
+    expect(users[0]?.privacyConsentAt).toBeNull();
+  });
+
+  it("keeps only the four address fields and no consent metadata in the serialized output", async () => {
+    const store = new FakePendingUsersStore();
+    // What a careless select could hand the mapper; none of it may leave the service.
+    const leakyAddress = Object.assign(
+      {
+        streetLine1: "123 Test Street",
+        streetLine2: "Unit 4",
+        barangay: "Poblacion",
+        city: "Makati",
+      },
+      {
+        id: "address-1",
+        latitude: "14.5995",
+        longitude: "120.9842",
+        province_or_state: "Metro Manila",
+        postal_code: "1234",
+        country_code: "PH",
+      },
+    );
+    const leakyRow = Object.assign(user({ address: leakyAddress }), {
+      contactNumber: "09170000000",
+      contact_number: "09170000000",
+      ip_address: "192.0.2.1",
+      policy_version: "1.0",
+    });
+    store.rows = [leakyRow];
+
+    const users = await listPendingUsers({ store }, { limit: 50 });
+
+    expect(Object.keys(users[0]?.address ?? {}).sort()).toEqual([
+      "barangay",
+      "city",
+      "streetLine1",
+      "streetLine2",
+    ]);
+    const serialized = JSON.stringify(users);
+    expect(serialized).not.toContain("latitude");
+    expect(serialized).not.toContain("longitude");
+    expect(serialized).not.toContain("ip_address");
+    expect(serialized).not.toContain("postal");
+    expect(serialized).not.toContain("province");
+    expect(serialized).not.toContain("contactNumber");
+    expect(serialized).not.toContain("contact_number");
+  });
+
+  it("returns the privacy consent time the store selected, unchanged", async () => {
+    const store = new FakePendingUsersStore();
+    // Which row that is (latest granted_at, consent_type PRIVACY_POLICY, revoked_at
+    // null) is decided by the Prisma query in prisma-pending-users-store.ts; it
+    // cannot be tested without a database.
+    const grantedAt = new Date("2026-11-04T06:30:00.000Z");
+    store.rows = [user({ privacyConsentAt: grantedAt })];
+
+    const users = await listPendingUsers({ store }, { limit: 50 });
+
+    expect(users[0]?.privacyConsentAt).toEqual(grantedAt);
   });
 
   it("returns an empty list when the store has nothing", async () => {
