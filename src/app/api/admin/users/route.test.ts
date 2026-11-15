@@ -36,6 +36,13 @@ function pendingUser(id: string): PendingUser {
     createdAt: new Date("2026-11-02T00:00:00.000Z"),
     donorType: "ESTABLISHMENT",
     businessName: "Test Bakery Corp",
+    address: {
+      streetLine1: "123 Test Street",
+      streetLine2: "Unit 4",
+      barangay: "Poblacion",
+      city: "Makati",
+    },
+    privacyConsentAt: null,
     documents: [],
   };
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { PRIVACY_CONSENT_TYPE } from "@/contracts/registration";
 import type { PendingUsersStore } from "./pending-users";
 
 export const prismaPendingUsersStore: PendingUsersStore = {
@@ -17,6 +18,22 @@ export const prismaPendingUsersStore: PendingUsersStore = {
         donor_type: true,
         business_name: true,
         deleted_at: true,
+        addresses: {
+          select: {
+            street_line1: true,
+            street_line2: true,
+            barangay: true,
+            city: true,
+          },
+        },
+        // The latest unrevoked privacy consent only; ip_address and the policy
+        // version stay in the database.
+        user_consents: {
+          where: { consent_type: PRIVACY_CONSENT_TYPE, revoked_at: null },
+          orderBy: { granted_at: "desc" },
+          take: 1,
+          select: { granted_at: true },
+        },
         user_documents_user_documents_user_idTousers: {
           where: { deleted_at: null },
           orderBy: { created_at: "asc" },
@@ -42,6 +59,16 @@ export const prismaPendingUsersStore: PendingUsersStore = {
       createdAt: user.created_at,
       donorType: user.donor_type,
       businessName: user.business_name,
+      address:
+        user.addresses === null
+          ? null
+          : {
+              streetLine1: user.addresses.street_line1,
+              streetLine2: user.addresses.street_line2,
+              barangay: user.addresses.barangay,
+              city: user.addresses.city,
+            },
+      privacyConsentAt: user.user_consents[0]?.granted_at ?? null,
       deletedAt: user.deleted_at,
       documents: user.user_documents_user_documents_user_idTousers.map((document) => ({
         id: document.id,
