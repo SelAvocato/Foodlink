@@ -11,13 +11,14 @@ import { authErrorResponse, errorResponse } from "@/server/http/errors";
 import { parseJsonBody } from "@/server/http/parse-json";
 import { transitionErrorResponse } from "@/server/donations/transition-error-response";
 import { safeErrorSummary } from "@/lib/safe-error";
+import { stripMarkup } from "@/lib/plain-text";
 
 export const runtime = "nodejs";
 
 const transitionBodySchema = z.strictObject({
     to: z.enum(Object.values(DonationStatus) as [string, ...string[]]),
-    eventNote: z.string().trim().max(500).optional(),
-    reason: z.string().trim().max(500).optional(),
+    eventNote: z.string().overwrite(stripMarkup).max(500).optional(),
+    reason: z.string().overwrite(stripMarkup).max(500).optional(),
     volunteerId: z.uuid().optional(),
 });
 
