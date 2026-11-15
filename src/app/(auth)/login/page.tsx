@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { roleHome } from "@/lib/role-home";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -7,7 +11,11 @@ export const metadata: Metadata = {
   description: "Sign in to the FoodLink donor and volunteer portal.",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await getServerSession(authOptions);
+  if (session?.user) {
+    redirect(roleHome(session.user.role));
+  }
   return (
     <main className="flex min-h-screen flex-col bg-background lg:grid lg:grid-cols-2">
       {/* Left panel: the portal's promise, in written words */}
