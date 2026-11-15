@@ -1,11 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  LocationPicker,
+  type FlyTarget,
+  type MapPoint,
+} from "@/components/map/location-picker";
 import type { DonorType } from "@/contracts/enums";
+import {
+  formatPin,
+  locationFailureMessage,
+  LOCATION_UNSUPPORTED_MESSAGE,
+  roundPin,
+} from "@/lib/map-pin";
 import {
   buildRegistrationFormData,
   interpretDonorRegistrationResponse,
@@ -61,8 +72,57 @@ export function DonorRegistrationForm() {
   const [sending, setSending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [donorType, setDonorType] = useState<DonorType>("ESTABLISHMENT");
-  // The map step is a later task; until it exists no coordinates are ever invented here.
-  const pin: DonorMapPin | null = null;
+  const [pin, setPin] = useState<DonorMapPin | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
+  // Bumped on every manual map pick, so a slower geolocation answer cannot overwrite it.
+  const pickVersion = useRef(0);
+
+  function placePin(point: MapPoint) {
+    // The column keeps 6 decimals (numeric(9,6)); round here so what is shown is what is saved.
+    setPin(roundPin(point));
+    setErrors((previous) => ({ ...previous, mapPin: undefined }));
+    setLocationMessage(null);
+  }
+
+  function pickOnMap(point: MapPoint) {
+    pickVersion.current += 1;
+    // A manual pick replaces any earlier "move the map" command, so reopening the picker starts at this pin.
+    setFlyTo(null);
+    placePin(point);
+  }
+
+  function locateMe() {
+    if (locating) return;
+    if (!("geolocation" in navigator)) {
+      setLocationMessage(LOCATION_UNSUPPORTED_MESSAGE);
+      return;
+    }
+    setLocating(true);
+    setLocationMessage(null);
+    const startedAt = pickVersion.current;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const point = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setLocating(false);
+        // The donor picked a point on the map while this lookup was running; keep that pick.
+        if (pickVersion.current !== startedAt) return;
+        placePin(point);
+        setFlyTo({ ...point, id: Date.now() });
+      },
+      (failure) => {
+        setLocating(false);
+        if (pickVersion.current !== startedAt) return;
+        setLocationMessage(locationFailureMessage(failure.code));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  }
 
   function chooseDonorType(next: DonorType) {
     setDonorType(next);
@@ -271,10 +331,28 @@ export function DonorRegistrationForm() {
             id="mapPin"
             type="button"
             className="flex h-11 w-full items-center rounded-lg border border-input bg-transparent px-3 text-left text-sm text-(--fl-muted) outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-expanded={mapOpen}
+            onClick={() => setMapOpen((open) => !open)}
             {...ariaFor("mapPin", errors.mapPin)}
           >
-            Set location on map
+            {pin ? `Pin set: ${formatPin(pin)}` : "Set location on map"}
           </button>
+          {mapOpen ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-(--fl-muted)">Tap or click the map to place the pin.</p>
+              <Button type="button" variant="outline" onClick={locateMe} disabled={locating}>
+                {locating ? "Finding your location..." : "Use my current location"}
+              </Button>
+              {locationMessage ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {locationMessage}
+                </p>
+              ) : null}
+              <div className="overflow-hidden rounded-lg border border-input">
+                <LocationPicker value={pin} flyTo={flyTo} onPick={pickOnMap} />
+              </div>
+            </div>
+          ) : null}
           <FieldError id="mapPin" message={errors.mapPin} />
         </div>
 
