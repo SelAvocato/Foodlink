@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { loginSchema } from "@/contracts/auth";
+import { roleHome } from "@/lib/role-home";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,8 +55,7 @@ export function LoginForm() {
     }
 
     const session = await getSession();
-    const destination = session?.user?.role === "DONOR" ? "/donor/dashboard" : "/";
-    router.push(destination);
+    router.replace(roleHome(session?.user?.role));
   }
 
   return (
