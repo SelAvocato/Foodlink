@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { roleHome } from "@/lib/role-home";
+import { AuthSplitLayout } from "@/features/auth/auth-split-layout";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
