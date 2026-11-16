@@ -1,9 +1,8 @@
 import * as React from "react"
 import { cn } from "cn"
+import type { Tone } from "@/components/shared/tones"
 
-type StatusBadgeTone = "success" | "warning" | "error" | "neutral"
-
-const toneClasses: Record<StatusBadgeTone, string> = {
+const toneClasses: Record<Tone, string> = {
   success: "bg-success text-success-foreground",
   warning: "bg-warning text-warning-foreground",
   error: "bg-error text-error-foreground",
@@ -11,7 +10,7 @@ const toneClasses: Record<StatusBadgeTone, string> = {
 }
 
 /** Written status text always; the tone is a soft fill, never the only signal. */
-function StatusBadge({ tone = "neutral", className, ...props }: React.ComponentProps<"span"> & { tone?: StatusBadgeTone }) {
+function StatusBadge({ tone = "neutral", className, ...props }: React.ComponentProps<"span"> & { tone?: Tone }) {
   return (
     <span
       data-slot="status-badge"
