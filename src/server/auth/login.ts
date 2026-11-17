@@ -122,7 +122,7 @@ export async function authenticateLogin(
 
         if (user.user_credentials.locked_until && user.user_credentials.locked_until > new Date()) {
             await logLoginFailure("account_locked", clientIp(headers), user.id);
-            throw new LoginError("account_locked");
+            throw new LoginError("account_locked", `account_locked:${user.user_credentials.locked_until.toISOString()}`);
         }
 
         if (user.status !== "ACTIVE") {
