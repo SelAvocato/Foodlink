@@ -35,6 +35,18 @@ export const StorageCondition = {
 } as const;
 export type StorageCondition = (typeof StorageCondition)[keyof typeof StorageCondition];
 
+export const PickupDecision = {
+  ACCEPTED: "ACCEPTED",
+  REJECTED: "REJECTED",
+} as const;
+export type PickupDecision = (typeof PickupDecision)[keyof typeof PickupDecision];
+
+export const QrScanStage = {
+  PICKUP: "PICKUP",
+  DROPOFF: "DROPOFF",
+} as const;
+export type QrScanStage = (typeof QrScanStage)[keyof typeof QrScanStage];
+
 export const DonationStatus = {
   DRAFT: "DRAFT",
   SCREENED: "SCREENED",

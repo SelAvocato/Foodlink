@@ -64,7 +64,7 @@ export type GetFoodPhotoUrlResult =
  * key never reaches the log — `failure` is a constant label and only the safe
  * summary of the caught error is logged.
  */
-async function removePhoto(storage: PhotoUploadStorage, key: string, failure: string): Promise<void> {
+export async function removePhoto(storage: PhotoUploadStorage, key: string, failure: string): Promise<void> {
   try {
     await storage.removeObject(key);
   } catch (cleanupError) {
