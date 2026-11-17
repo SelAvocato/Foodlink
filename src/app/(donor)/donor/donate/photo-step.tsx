@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import {
   screeningOutcome,
   validatePhotoFile,
 } from "./photo-step-logic";
+import { parsePhotoUrl } from "./resume-logic";
 
 // Static list for the preview route only: the wizard loads the categories allowed for the donor type.
 export const PREVIEW_CATEGORIES = [
@@ -41,6 +42,8 @@ type PhotoStepProps = {
   categoriesError: boolean;
   onRetryCategories: () => void;
   onPassed: (category: FoodCategoryOption) => void;
+  /** Set when the wizard resumed an existing draft: it already has an id and category. */
+  initialDraft?: { id: string; categoryCode: string };
 };
 
 type StepBanner = {
@@ -64,25 +67,57 @@ export function PhotoStep({
   categoriesError,
   onRetryCategories,
   onPassed,
+  initialDraft,
 }: PhotoStepProps) {
-  const [categoryCode, setCategoryCode] = useState("");
+  const [categoryCode, setCategoryCode] = useState(initialDraft?.categoryCode ?? "");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(initialDraft?.id ?? null);
   const [busy, setBusy] = useState(false);
   const [waitingForReview, setWaitingForReview] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [banner, setBanner] = useState<StepBanner | null>(null);
+  // Signed url of the draft's saved photo: shown, never stored or logged elsewhere.
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   // The ref tracks the live object URL so the unmount cleanup revokes the last one.
   const photoUrlRef = useRef<string | null>(null);
+  // Bumped by restart() so a saved-photo read that began earlier is ignored.
+  const photoReadRef = useRef(0);
 
   useEffect(() => {
     return () => {
       if (photoUrlRef.current !== null) URL.revokeObjectURL(photoUrlRef.current);
     };
   }, []);
+
+  // Fetching and applying stay separate so the effect never calls setState
+  // synchronously (react-hooks/set-state-in-effect). A 404 or any failure just
+  // leaves the state null: the donor simply uploads a photo again.
+  const fetchExistingPhotoUrl = useCallback(async (): Promise<string | null> => {
+    if (initialDraft === undefined) return null;
+    try {
+      const response = await fetch(`/api/donor/drafts/${initialDraft.id}/photo`);
+      if (!response.ok) return null;
+      const body: unknown = await response.json();
+      return parsePhotoUrl(body);
+    } catch {
+      return null;
+    }
+  }, [initialDraft]);
+
+  const applyExistingPhotoUrl = useCallback((url: string | null) => {
+    setExistingPhotoUrl(url);
+  }, []);
+
+  useEffect(() => {
+    const generation = photoReadRef.current;
+    void fetchExistingPhotoUrl().then((url) => {
+      // restart() bumps the counter: a read that began before it is stale.
+      if (photoReadRef.current === generation) applyExistingPhotoUrl(url);
+    });
+  }, [fetchExistingPhotoUrl, applyExistingPhotoUrl]);
 
   const chosenCategory = categories.find((category) => category.code === categoryCode) ?? null;
 
@@ -130,6 +165,8 @@ export function PhotoStep({
   function restart() {
     setDraftId(null);
     setCategoryCode("");
+    photoReadRef.current += 1;
+    setExistingPhotoUrl(null);
     setFileError(null);
     setBanner(null);
     setWaitingForReview(false);
@@ -139,7 +176,7 @@ export function PhotoStep({
 
   /** The one press that runs the sequence: draft (once) -> photo -> screening. */
   async function handleScreen() {
-    if (busy || chosenCategory === null || photoFile === null) return;
+    if (busy || chosenCategory === null || (photoFile === null && existingPhotoUrl === null)) return;
     const category = chosenCategory;
     setBusy(true);
     setBanner(null);
@@ -171,12 +208,15 @@ export function PhotoStep({
         id = newId;
       }
 
-      const form = new FormData();
-      form.append("photo", photoFile);
-      const uploaded = await fetch(`/api/donor/drafts/${id}/photo`, { method: "POST", body: form });
-      if (!uploaded.ok) {
-        showRequestError(await uploaded.json().catch(() => null), true);
-        return;
+      // A resumed draft with a saved photo has nothing new to upload.
+      if (photoFile !== null) {
+        const form = new FormData();
+        form.append("photo", photoFile);
+        const uploaded = await fetch(`/api/donor/drafts/${id}/photo`, { method: "POST", body: form });
+        if (!uploaded.ok) {
+          showRequestError(await uploaded.json().catch(() => null), true);
+          return;
+        }
       }
 
       const screened = await fetch(`/api/donor/drafts/${id}/screening`, { method: "POST" });
@@ -210,7 +250,7 @@ export function PhotoStep({
 
   const screenReady = canScreenPhoto({
     hasCategory: chosenCategory !== null,
-    hasPhoto: photoFile !== null,
+    hasPhoto: photoFile !== null || existingPhotoUrl !== null,
     busy,
     waitingForReview,
   });
@@ -267,17 +307,7 @@ export function PhotoStep({
           </div>
 
           <div className="mt-6 flex min-h-56 flex-col justify-center gap-4 rounded-sm border border-dashed border-(--fl-muted)/40 bg-(--fl-canvas) p-8">
-            {photoUrl === null ? (
-              <>
-                <h3 className="text-2xl font-semibold text-(--fl-primary)">
-                  One photo per donation
-                </h3>
-                <div className="flex flex-col gap-1 text-base text-(--fl-muted)">
-                  <p>Take a photo or choose an image.</p>
-                  <p>JPEG, PNG, WebP · Up to 4 MB</p>
-                </div>
-              </>
-            ) : (
+            {photoUrl !== null ? (
               <>
                 {/* next/image cannot optimize a blob: object URL, so a plain img is required. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -289,6 +319,29 @@ export function PhotoStep({
                 <p className="w-full truncate text-center text-sm text-(--fl-muted)">
                   {photoFile?.name}
                 </p>
+              </>
+            ) : existingPhotoUrl !== null ? (
+              <>
+                {/* The signed url expires, so a plain img reads it without a next/image loader. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={existingPhotoUrl}
+                  alt="Saved food photo"
+                  className="mx-auto max-h-72 rounded-sm object-contain"
+                />
+                <p className="w-full truncate text-center text-sm text-(--fl-muted)">
+                  Saved photo
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-2xl font-semibold text-(--fl-primary)">
+                  One photo per donation
+                </h3>
+                <div className="flex flex-col gap-1 text-base text-(--fl-muted)">
+                  <p>Take a photo or choose an image.</p>
+                  <p>JPEG, PNG, WebP · Up to 4 MB</p>
+                </div>
               </>
             )}
           </div>
