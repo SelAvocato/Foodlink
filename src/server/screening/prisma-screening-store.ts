@@ -47,7 +47,7 @@ async function hasPendingReviewIn(db: Db, donationId: string): Promise<boolean> 
   return count > 0;
 }
 
-async function insertScreeningIn(db: Db, row: ScreeningInsert): Promise<{ id: string }> {
+export async function insertScreeningIn(db: Db, row: ScreeningInsert): Promise<{ id: string }> {
   const screening = await db.food_screenings.create({
     data: {
       donation_id: row.donationId,

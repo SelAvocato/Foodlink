@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DonationStatus, Role } from "@/contracts/enums";
+import { DonationStatus, PickupDecision, QrScanStage, Role } from "@/contracts/enums";
 
 describe("contracts/enums", () => {
   it("has the 13 donation statuses from the System Structure", () => {
@@ -20,5 +20,10 @@ describe("contracts/enums", () => {
     for (const [key, value] of Object.entries(DonationStatus)) {
       expect(value).toBe(key);
     }
+  });
+
+  it("mirrors the two pickup decisions and the two scan stages from the schema", () => {
+    expect(Object.values(PickupDecision)).toEqual(["ACCEPTED", "REJECTED"]);
+    expect(Object.values(QrScanStage)).toEqual(["PICKUP", "DROPOFF"]);
   });
 });
