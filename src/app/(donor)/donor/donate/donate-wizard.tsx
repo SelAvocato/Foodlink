@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { ChecklistStep } from "./checklist-step";
+import { allergenCodesFromDraftList, type AllergenOption } from "./checklist-logic";
 import { DonateGuide } from "./donate-guide";
 import { PhotoStep, type FoodCategoryOption } from "./photo-step";
 import { lookupDraft, type ResumeDraft } from "./resume-logic";
@@ -13,13 +14,23 @@ type Step = "guide" | "photo" | "checklist" | "resume";
 type OptionsState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; categories: FoodCategoryOption[] };
+  | { status: "ready"; categories: FoodCategoryOption[]; allergens: AllergenOption[] };
+
+/** What one food-options request answered: the two lists the wizard reads. */
+type FoodOptions = { categories: FoodCategoryOption[]; allergens: AllergenOption[] };
 
 /** What the drafts list said about ?draft=: found it, has no such draft, or could not say. */
 type ResumeOutcome =
-  | { kind: "found"; draft: ResumeDraft }
+  | { kind: "found"; draft: ResumeDraft; allergenCodes: string[] }
   | { kind: "missing" }
   | { kind: "failed" };
+
+/** The draft the checklist step works on: the category that passed screening and its id. */
+type PassedDraft = {
+  category: FoodCategoryOption;
+  donationId: string;
+  allergenCodes: string[];
+};
 
 /** What the resume view shows until it can hand over to a real step. */
 type ResumeView = "loading" | "not_found" | "failed";
@@ -57,34 +68,36 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
   const [step, setStep] = useState<Step>(hasDraftParam ? "resume" : "guide");
   const [donorLabel, setDonorLabel] = useState("Donor");
   const [options, setOptions] = useState<OptionsState>({ status: "loading" });
-  const [passedCategory, setPassedCategory] = useState<FoodCategoryOption | null>(null);
+  const [passedDraft, setPassedDraft] = useState<PassedDraft | null>(null);
+  // The allergens a resumed DRAFT already has, kept until it passes screening.
+  const [resumedAllergenCodes, setResumedAllergenCodes] = useState<string[]>([]);
   const [resumeView, setResumeView] = useState<ResumeView>("loading");
   const [resumedDraft, setResumedDraft] = useState<{ id: string; categoryCode: string } | null>(
     null,
   );
   // The resume view waits on the same food-options request the wizard already
   // started instead of asking for it a second time.
-  const optionsPromiseRef = useRef<Promise<FoodCategoryOption[] | null> | null>(null);
+  const optionsPromiseRef = useRef<Promise<FoodOptions | null> | null>(null);
 
   // Fetching and applying are separate: the effect only passes the apply
   // callbacks in .then, so it never calls setState synchronously
   // (react-hooks/set-state-in-effect).
-  const fetchFoodOptions = useCallback(async (): Promise<FoodCategoryOption[] | null> => {
+  const fetchFoodOptions = useCallback(async (): Promise<FoodOptions | null> => {
     try {
       const response = await fetch("/api/donor/food-options");
       if (!response.ok) return null;
       const body: unknown = await response.json();
       const parsed = foodOptionsSchema.safeParse(body);
-      return parsed.success ? parsed.data.categories : null;
+      return parsed.success
+        ? { categories: parsed.data.categories, allergens: parsed.data.allergens }
+        : null;
     } catch {
       return null;
     }
   }, []);
 
-  const applyFoodOptions = useCallback((categories: FoodCategoryOption[] | null) => {
-    setOptions(
-      categories === null ? { status: "error" } : { status: "ready", categories },
-    );
+  const applyFoodOptions = useCallback((next: FoodOptions | null) => {
+    setOptions(next === null ? { status: "error" } : { status: "ready", ...next });
   }, []);
 
   // A failed profile load keeps the neutral "Donor" label; only the label cares.
@@ -118,7 +131,13 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
       const response = await fetch("/api/donor/drafts");
       if (!response.ok) return { kind: "failed" };
       const body: unknown = await response.json();
-      return lookupDraft(body, initialDraftId);
+      const outcome = lookupDraft(body, initialDraftId);
+      if (outcome.kind !== "found") return outcome;
+      // The same body already holds the draft's allergens; a body without a
+      // usable list is a failed resume, never "the draft has none".
+      const allergenCodes = allergenCodesFromDraftList(body, initialDraftId);
+      if (allergenCodes === null) return { kind: "failed" };
+      return { kind: "found", draft: outcome.draft, allergenCodes };
     } catch {
       return { kind: "failed" };
     }
@@ -128,9 +147,9 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
   // options really list, or the photo step would render a select that cannot
   // resolve it. The setState calls all run in .then, never in the effect.
   const runResume = useCallback(
-    (optionsPromise: Promise<FoodCategoryOption[] | null>) => {
-      void Promise.all([fetchResumeOutcome(), optionsPromise]).then(([outcome, categories]) => {
-        if (categories === null || outcome.kind === "failed") {
+    (optionsPromise: Promise<FoodOptions | null>) => {
+      void Promise.all([fetchResumeOutcome(), optionsPromise]).then(([outcome, foodOptions]) => {
+        if (foodOptions === null || outcome.kind === "failed") {
           setResumeView("failed");
           return;
         }
@@ -138,7 +157,7 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
           setResumeView("not_found");
           return;
         }
-        const category = categories.find(
+        const category = foodOptions.categories.find(
           (entry) => entry.code === outcome.draft.foodCategoryCode,
         );
         if (category === undefined) {
@@ -146,13 +165,18 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
           return;
         }
         if (outcome.draft.status === "DRAFT") {
+          setResumedAllergenCodes(outcome.allergenCodes);
           setResumedDraft({
             id: outcome.draft.id,
             categoryCode: outcome.draft.foodCategoryCode,
           });
           setStep("photo");
         } else {
-          setPassedCategory(category);
+          setPassedDraft({
+            category,
+            donationId: outcome.draft.id,
+            allergenCodes: outcome.allergenCodes,
+          });
           setStep("checklist");
         }
       });
@@ -188,18 +212,24 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
     window.scrollTo({ top: 0 });
   }
 
-  function handlePassed(category: FoodCategoryOption) {
-    setPassedCategory(category);
+  function handlePassed(category: FoodCategoryOption, donationId: string) {
+    // A resumed draft keeps the allergens it already has; a fresh pass starts from none.
+    const allergenCodes =
+      resumedDraft !== null && resumedDraft.id === donationId ? resumedAllergenCodes : [];
+    setPassedDraft({ category, donationId, allergenCodes });
     setStep("checklist");
     window.scrollTo({ top: 0 });
   }
 
-  if (step === "checklist" && passedCategory !== null) {
+  if (step === "checklist" && passedDraft !== null) {
     return (
       <ChecklistStep
-        categoryName={passedCategory.name}
-        requiresPreparedTime={passedCategory.requiresPreparedTime}
-        requiresStorageInfo={passedCategory.requiresStorageInfo}
+        categoryName={passedDraft.category.name}
+        requiresPreparedTime={passedDraft.category.requiresPreparedTime}
+        requiresStorageInfo={passedDraft.category.requiresStorageInfo}
+        donationId={passedDraft.donationId}
+        initialAllergenCodes={passedDraft.allergenCodes}
+        allergens={options.status === "ready" ? options.allergens : []}
       />
     );
   }

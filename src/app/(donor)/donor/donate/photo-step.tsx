@@ -41,7 +41,7 @@ type PhotoStepProps = {
   categoriesLoading: boolean;
   categoriesError: boolean;
   onRetryCategories: () => void;
-  onPassed: (category: FoodCategoryOption) => void;
+  onPassed: (category: FoodCategoryOption, donationId: string) => void;
   /** Set when the wizard resumed an existing draft: it already has an id and category. */
   initialDraft?: { id: string; categoryCode: string };
 };
@@ -231,7 +231,7 @@ export function PhotoStep({
         return;
       }
       if (outcome.outcome === "passed") {
-        onPassed(category);
+        onPassed(category, id);
         return;
       }
       if (outcome.outcome === "review") {
