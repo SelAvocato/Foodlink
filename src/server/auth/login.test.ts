@@ -40,3 +40,29 @@ describe("authenticateLogin database failure logging", () => {
     spy.mockRestore();
   });
 });
+
+describe("authenticateLogin account lockout", () => {
+  it("throws account_locked with the locked-until timestamp for a locked account", async () => {
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    prismaMock.users.findFirst.mockResolvedValue({
+      id: "user-1",
+      email: "locked@example.test",
+      full_name: "Locked User",
+      role: "DONOR",
+      status: "ACTIVE",
+      user_credentials: {
+        password_hash: "not-checked",
+        failed_login_count: 5,
+        locked_until: lockedUntil,
+      },
+    });
+    prismaMock.audit_logs.create.mockResolvedValue({});
+
+    await expect(
+      authenticateLogin({ email: "locked@example.test", password: "Password123!" }),
+    ).rejects.toMatchObject({
+      category: "account_locked",
+      message: `account_locked:${lockedUntil.toISOString()}`,
+    });
+  });
+});

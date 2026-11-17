@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
@@ -8,7 +8,11 @@ import { loginSchema } from "@/contracts/auth";
 import { roleHome } from "@/lib/role-home";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/shared/form-field";
+import { FeedbackBanner } from "@/components/shared/feedback-banner";
+
+const LOCKOUT_STORAGE_KEY = "fl-login-locked-until";
+const LOCKOUT_ERROR_PREFIX = "account_locked:";
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -17,15 +21,67 @@ function firstIssue(issues: { path: PropertyKey[]; message: string }[], field: "
   return issue?.message;
 }
 
+/** Server throws LoginError("account_locked", "account_locked:<iso>") for a locked account. */
+function parseLockoutUntil(value: string | null | undefined): Date | null {
+  if (!value || !value.startsWith(LOCKOUT_ERROR_PREFIX)) return null;
+  const until = new Date(value.slice(LOCKOUT_ERROR_PREFIX.length));
+  return Number.isNaN(until.getTime()) || until.getTime() <= Date.now() ? null : until;
+}
+
+function readStoredLockout(): Date | null {
+  if (typeof window === "undefined") return null;
+  return parseLockoutUntil(window.sessionStorage.getItem(LOCKOUT_STORAGE_KEY));
+}
+
+function formatCountdown(totalSeconds: number) {
+  const mm = Math.floor(totalSeconds / 60);
+  const ss = totalSeconds % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
+  const [lockoutExpired, setLockoutExpired] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // A refresh must not hide an active lockout: restore the deadline from sessionStorage.
+  // Deferred to a microtask so the effect does not set state synchronously.
+  useEffect(() => {
+    const until = readStoredLockout();
+    if (!until) return;
+    queueMicrotask(() => setLockoutUntil(until));
+  }, []);
+
+  useEffect(() => {
+    if (!lockoutUntil) return;
+    const id = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= lockoutUntil.getTime()) {
+        setLockoutUntil(null);
+        setLockoutExpired(true);
+        window.clearInterval(id);
+        window.sessionStorage.removeItem(LOCKOUT_STORAGE_KEY);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [lockoutUntil]);
+
+  const remainingSeconds = lockoutUntil
+    ? Math.max(0, Math.ceil((lockoutUntil.getTime() - now) / 1000))
+    : 0;
+  const lockedOut = lockoutUntil !== null && remainingSeconds > 0;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // The button is disabled while locked; guard the Enter key too.
+    if (lockedOut) return;
     setFormError(null);
+    setLockoutExpired(false);
     setFieldErrors({});
 
     const form = new FormData(event.currentTarget);
@@ -50,65 +106,62 @@ export function LoginForm() {
     });
     if (result?.error) {
       setSubmitting(false);
+      const until = parseLockoutUntil(result.error);
+      if (until) {
+        setLockoutUntil(until);
+        setNow(Date.now());
+        window.sessionStorage.setItem(LOCKOUT_STORAGE_KEY, `${LOCKOUT_ERROR_PREFIX}${until.toISOString()}`);
+        return;
+      }
       setFormError("Invalid username or password");
       return;
     }
 
+    window.sessionStorage.removeItem(LOCKOUT_STORAGE_KEY);
     const session = await getSession();
     router.replace(roleHome(session?.user?.role));
   }
 
   return (
     <form className="mt-8 flex flex-col gap-5" noValidate onSubmit={onSubmit}>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="name@example.com"
-          aria-invalid={fieldErrors.email ? true : undefined}
-          aria-describedby={fieldErrors.email ? "email-error" : undefined}
-        />
-        {fieldErrors.email ? (
-          <p id="email-error" role="alert" className="text-sm text-destructive">
-            {fieldErrors.email}
-          </p>
-        ) : null}
-      </div>
+      <FormField label="Email" error={fieldErrors.email}>
+        {(p) => (
+          <Input {...p} name="email" type="email" autoComplete="email" placeholder="name@example.com" />
+        )}
+      </FormField>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">Password</Label>
-          <Link href="/forgot" className="text-sm text-primary hover:underline">
+      <FormField
+        label="Password"
+        error={fieldErrors.password}
+        labelAction={
+          <Link href="/forgot" className="text-primary hover:underline">
             Forgot password?
           </Link>
-        </div>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          placeholder="Enter your password"
-          aria-invalid={fieldErrors.password ? true : undefined}
-          aria-describedby={fieldErrors.password ? "password-error" : undefined}
-        />
-        {fieldErrors.password ? (
-          <p id="password-error" role="alert" className="text-sm text-destructive">
-            {fieldErrors.password}
-          </p>
-        ) : null}
-      </div>
+        }
+      >
+        {(p) => (
+          <Input {...p} name="password" type="password" autoComplete="current-password" placeholder="Enter your password" />
+        )}
+      </FormField>
 
-      {formError ? (
+      {lockedOut ? (
+        <FeedbackBanner tone="warning" title="Account temporarily locked">
+          Too many failed attempts. Try again in{" "}
+          <span className="font-semibold tabular-nums" role="status" aria-live="polite">
+            {formatCountdown(remainingSeconds)}
+          </span>
+          .
+        </FeedbackBanner>
+      ) : lockoutExpired ? (
+        <FeedbackBanner tone="success" title="You can try again now." />
+      ) : formError ? (
         <div role="alert" className="rounded-lg bg-error p-4 text-sm text-error-foreground">
           {formError}
         </div>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={submitting} aria-busy={submitting}>
-        {submitting ? "Logging in…" : "Login"}
+      <Button type="submit" className="w-full" disabled={submitting || lockedOut} aria-busy={submitting}>
+        {submitting ? "Logging in." : lockedOut ? "Locked" : "Login"}
       </Button>
     </form>
   );
