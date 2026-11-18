@@ -93,7 +93,7 @@ export type ScreenDraftPhotoResult =
     }
   | { ok: false; error: "NOT_FOUND" | "NOT_EDITABLE" | "REVIEW_PENDING" | "PHOTO_REQUIRED" | "PHOTO_CHANGED" };
 
-const DEFAULT_TIMEOUT_MS = 10_000;
+export const DEFAULT_TIMEOUT_MS = 10_000;
 const SIGNED_URL_SECONDS = 60;
 
 /** The PDF gives no confidence threshold; 0.7 is our choice. */
@@ -118,12 +118,12 @@ function rejectionReason(signs: readonly string[]): string {
     : `Photo failed visual screening: ${visible.join(", ")}.`;
 }
 
-type ProviderAttempt =
+export type ProviderAttempt =
   | { kind: "reply"; value: unknown }
   | { kind: "timeout" }
   | { kind: "error"; error: unknown };
 
-async function callProvider(
+export async function callProvider(
   provider: ScreeningProvider,
   input: ScreeningProviderInput,
   timeoutMs: number,
@@ -148,14 +148,14 @@ async function callProvider(
   }
 }
 
-type Evaluation = {
+export type Evaluation = {
   verdict: ScreeningVerdict;
   confidence: number | null;
   signs: string[];
   notes: string | null;
 };
 
-function evaluateAttempt(attempt: ProviderAttempt): Evaluation {
+export function evaluateAttempt(attempt: ProviderAttempt): Evaluation {
   if (attempt.kind === "timeout") {
     return { verdict: ScreeningVerdict.REVIEW, confidence: null, signs: [], notes: TIMEOUT_NOTE };
   }
