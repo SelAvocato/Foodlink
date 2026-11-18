@@ -21,6 +21,14 @@ type ScanRow = {
 const donationStatusSchema = z.enum(DonationStatus);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function toRecordedScan(row: ScanRow): RecordedDropoffScan {
+  return {
+    inserted: row.inserted,
+    scannedAt: row.scanned_at,
+    scannedByUserId: row.scanned_by_user_id,
+  };
+}
+
 /**
  * Thin adapter over donations, donation_assignments and donation_qr_scans. The
  * insert is conditional on the donation still being PICKED_UP, so a concurrent
@@ -72,35 +80,40 @@ export const prismaDropoffScanStore: DropoffScanStore = {
 
   async recordScan({ donationId, scannedByUserId }) {
     if (!UUID_PATTERN.test(donationId) || !UUID_PATTERN.test(scannedByUserId)) return null;
-    // The CTE returns the new row, or the existing one when the insert lost the
-    // race or the donation is no longer PICKED_UP. No row means neither happened.
-    const rows = await prisma.$queryRaw<ScanRow[]>`
-      WITH inserted AS (
-        INSERT INTO donation_qr_scans (donation_id, stage, scanned_by_user_id)
-        SELECT d.id, 'DROPOFF'::qr_scan_stage, ${scannedByUserId}::uuid
-        FROM donations d
-        WHERE d.id = ${donationId}::uuid
-          AND d.status = 'PICKED_UP'
-          AND d.deleted_at IS NULL
-        ON CONFLICT (donation_id, stage) DO NOTHING
-        RETURNING scanned_at, scanned_by_user_id, true AS inserted
-      )
-      SELECT scanned_at, scanned_by_user_id, inserted FROM inserted
-      UNION ALL
-      SELECT q.scanned_at, q.scanned_by_user_id, false AS inserted
-      FROM donation_qr_scans q
-      WHERE q.donation_id = ${donationId}::uuid
-        AND q.stage = 'DROPOFF'
-        AND NOT EXISTS (SELECT 1 FROM inserted)
-      LIMIT 1`;
+    // One transaction so the row lock survives until the scan is written: a
+    // transition or soft delete either commits before the lock (and no scan is
+    // written) or waits for it.
+    return prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM donations
+        WHERE id = ${donationId}::uuid
+          AND status = 'PICKED_UP'
+          AND deleted_at IS NULL
+        FOR UPDATE`;
 
-    const row = rows[0];
-    if (!row) return null;
-    const scan: RecordedDropoffScan = {
-      inserted: row.inserted,
-      scannedAt: row.scanned_at,
-      scannedByUserId: row.scanned_by_user_id,
-    };
-    return scan;
+      if (!locked[0]) return null;
+
+      const inserted = await tx.$queryRaw<ScanRow[]>`
+        INSERT INTO donation_qr_scans (donation_id, stage, scanned_by_user_id)
+        VALUES (${donationId}::uuid, 'DROPOFF'::qr_scan_stage, ${scannedByUserId}::uuid)
+        ON CONFLICT (donation_id, stage) DO NOTHING
+        RETURNING scanned_at, scanned_by_user_id, true AS inserted`;
+
+      if (inserted[0]) return toRecordedScan(inserted[0]);
+
+      // A separate statement in READ COMMITTED takes a fresh snapshot, so it
+      // sees the row committed by a concurrent winner that ON CONFLICT skipped.
+      const existing = await tx.$queryRaw<ScanRow[]>`
+        SELECT scanned_at, scanned_by_user_id, false AS inserted
+        FROM donation_qr_scans
+        WHERE donation_id = ${donationId}::uuid
+          AND stage = 'DROPOFF'
+        LIMIT 1`;
+
+      const row = existing[0];
+      if (!row) return null;
+      return toRecordedScan(row);
+    });
   },
 };
