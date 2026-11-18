@@ -38,10 +38,11 @@ type ChecklistStepProps = {
   /** The allergens the resumed draft already has; a fresh pass starts with none. */
   initialAllergenCodes: string[];
   allergens: AllergenOption[];
+  /** Opens the details step; only a complete save calls it, with the allergens it just sent. */
+  onComplete: (allergenCodes: string[]) => void;
 };
 
 type SaveOutcome =
-  | { kind: "success" }
   | { kind: "incomplete"; missing: string[] }
   | { kind: "error"; message: string };
 
@@ -54,6 +55,7 @@ export function ChecklistStep({
   donationId,
   initialAllergenCodes,
   allergens,
+  onComplete,
 }: ChecklistStepProps) {
   const notApplicable = `Not applicable · ${categoryName} selected`;
   const [form, setForm] = useState<ChecklistForm>(() =>
@@ -121,13 +123,15 @@ export function ChecklistStep({
   /** Save order: the allergens first, then the checklist. A retry repeats both. */
   async function handleContinue() {
     if (saving) return;
+    // Captured before the first await: what the PATCH sends is what the wizard keeps.
+    const allergenCodes = [...form.allergenCodes];
     setSaving(true);
     setOutcome(null);
     try {
       const patched = await fetch(`/api/donor/drafts/${donationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allergenCodes: form.allergenCodes }),
+        body: JSON.stringify({ allergenCodes }),
       });
       if (!patched.ok) {
         setSaved(false);
@@ -163,11 +167,12 @@ export function ChecklistStep({
         return;
       }
       setSaved(true);
-      setOutcome(
-        parsed.complete
-          ? { kind: "success" }
-          : { kind: "incomplete", missing: parsed.missing },
-      );
+      // The details step is the next one; only a complete checklist opens it.
+      if (parsed.complete) {
+        onComplete(allergenCodes);
+        return;
+      }
+      setOutcome({ kind: "incomplete", missing: parsed.missing });
     } catch {
       // Network failure: nothing about the allergen patch is reported, a retry repeats it.
       setSaved(false);
@@ -367,11 +372,7 @@ export function ChecklistStep({
           Prepared time and temperature appear only when applicable to the category.
         </p>
 
-        {outcome === null ? null : outcome.kind === "success" ? (
-          <FeedbackBanner tone="success" title="Checklist saved" className="mt-8">
-            The next step is not available yet.
-          </FeedbackBanner>
-        ) : outcome.kind === "incomplete" ? (
+        {outcome === null ? null : outcome.kind === "incomplete" ? (
           <FeedbackBanner tone="warning" title="Checklist not complete yet" className="mt-8">
             <ul className="flex list-disc flex-col gap-1 pl-5">
               {missingMessages(outcome.missing).map((message) => (

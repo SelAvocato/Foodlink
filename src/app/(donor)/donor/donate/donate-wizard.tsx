@@ -6,10 +6,11 @@ import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { ChecklistStep } from "./checklist-step";
 import { allergenCodesFromDraftList, type AllergenOption } from "./checklist-logic";
 import { DonateGuide } from "./donate-guide";
+import { DetailsStep } from "./details-step";
 import { PhotoStep, type FoodCategoryOption } from "./photo-step";
 import { lookupDraft, type ResumeDraft } from "./resume-logic";
 
-type Step = "guide" | "photo" | "checklist" | "resume";
+type Step = "guide" | "photo" | "checklist" | "details" | "resume";
 
 type OptionsState =
   | { status: "loading" }
@@ -221,6 +222,22 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
     window.scrollTo({ top: 0 });
   }
 
+  /** The checklist's save hands back the allergens it stored, so Back to it starts from those. */
+  function handleChecklistComplete(allergenCodes: string[]) {
+    if (passedDraft === null) return;
+    setPassedDraft({ ...passedDraft, allergenCodes });
+    setStep("details");
+    window.scrollTo({ top: 0 });
+  }
+
+  function handleDetailsBack() {
+    setStep("checklist");
+    window.scrollTo({ top: 0 });
+  }
+
+  /** The details step stays on its "next step not available yet" banner; the next step lands with W7. */
+  function handleDetailsSaved() {}
+
   if (step === "checklist" && passedDraft !== null) {
     return (
       <ChecklistStep
@@ -230,6 +247,19 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
         donationId={passedDraft.donationId}
         initialAllergenCodes={passedDraft.allergenCodes}
         allergens={options.status === "ready" ? options.allergens : []}
+        onComplete={handleChecklistComplete}
+      />
+    );
+  }
+
+  if (step === "details" && passedDraft !== null) {
+    return (
+      <DetailsStep
+        donationId={passedDraft.donationId}
+        categoryName={passedDraft.category.name}
+        donorLabel={donorLabel}
+        onBack={handleDetailsBack}
+        onSaved={handleDetailsSaved}
       />
     );
   }
