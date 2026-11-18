@@ -8,7 +8,13 @@ import { allergenCodesFromDraftList, type AllergenOption } from "./checklist-log
 import { DonateGuide } from "./donate-guide";
 import { DetailsStep } from "./details-step";
 import { PhotoStep, type FoodCategoryOption } from "./photo-step";
-import { lookupDraft, type ResumeDraft } from "./resume-logic";
+import {
+  deriveResumeStep,
+  lookupDraft,
+  parseChecklistComplete,
+  parsePickupSaved,
+  type ResumeDraft,
+} from "./resume-logic";
 
 type Step = "guide" | "photo" | "checklist" | "details" | "resume";
 
@@ -22,7 +28,12 @@ type FoodOptions = { categories: FoodCategoryOption[]; allergens: AllergenOption
 
 /** What the drafts list said about ?draft=: found it, has no such draft, or could not say. */
 type ResumeOutcome =
-  | { kind: "found"; draft: ResumeDraft; allergenCodes: string[] }
+  | {
+      kind: "found";
+      draft: ResumeDraft;
+      allergenCodes: string[];
+      step: "photo" | "checklist" | "details";
+    }
   | { kind: "missing" }
   | { kind: "failed" };
 
@@ -138,7 +149,28 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
       // usable list is a failed resume, never "the draft has none".
       const allergenCodes = allergenCodesFromDraftList(body, initialDraftId);
       if (allergenCodes === null) return { kind: "failed" };
-      return { kind: "found", draft: outcome.draft, allergenCodes };
+      // A DRAFT restarts at the photo step; only a SCREENED draft needs the two reads.
+      if (outcome.draft.status === "DRAFT") {
+        return { kind: "found", draft: outcome.draft, allergenCodes, step: "photo" };
+      }
+      const [checklistResponse, pickupResponse] = await Promise.all([
+        fetch(`/api/donor/drafts/${initialDraftId}/checklist`),
+        fetch(`/api/donor/drafts/${initialDraftId}/pickup`),
+      ]);
+      if (!checklistResponse.ok || !pickupResponse.ok) return { kind: "failed" };
+      const checklistComplete = parseChecklistComplete(await checklistResponse.json());
+      const pickupSaved = parsePickupSaved(await pickupResponse.json());
+      // An unreadable answer is a failed resume (retryable), never a guessed step.
+      if (checklistComplete === null || pickupSaved === null) return { kind: "failed" };
+      const derived = deriveResumeStep({
+        status: outcome.draft.status,
+        foodName: outcome.draft.foodName,
+        checklistComplete,
+        pickupSaved,
+      });
+      // Temporary: the review step lands with W7, so a finished draft opens on details.
+      const step = derived === "review" ? "details" : derived;
+      return { kind: "found", draft: outcome.draft, allergenCodes, step };
     } catch {
       return { kind: "failed" };
     }
@@ -178,7 +210,7 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
             donationId: outcome.draft.id,
             allergenCodes: outcome.allergenCodes,
           });
-          setStep("checklist");
+          setStep(outcome.step);
         }
       });
     },
