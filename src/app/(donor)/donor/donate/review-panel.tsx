@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import type { AllergenOption } from "./checklist-logic";
 import { canSubmit, parsePostSuccess, postFailure, type PostFailure } from "./post-logic";
+import { PostedView } from "./posted-view";
 import { parsePhotoUrl } from "./resume-logic";
 import { decideReview, type ReviewDecision } from "./review-load";
-import { formatDateTime } from "./review-logic";
 import { ReviewStep } from "./review-step";
 
 type ReviewPanelProps = {
@@ -60,7 +60,12 @@ export function ReviewPanel({
   const [confirmed, setConfirmed] = useState(false);
   const [posting, setPosting] = useState(false);
   const [failure, setFailure] = useState<PostFailure | null>(null);
-  const [posted, setPosted] = useState<{ donationId: string; expiresAt: string } | null>(null);
+  const [posted, setPosted] = useState<{
+    donationId: string;
+    foodName: string;
+    portions: number;
+    pickupLines: string[];
+  } | null>(null);
   // A second click in the same tick cannot start a second post.
   const postingRef = useRef(false);
   // The latest onNeeds, so a new callback identity never restarts the load.
@@ -136,10 +141,15 @@ export function ReviewPanel({
       }
       if (response.ok) {
         const done = parsePostSuccess(body);
-        if (done === null) {
+        if (done === null || state.status !== "ready") {
           setFailure(UNSURE_FAILURE);
         } else {
-          setPosted(done);
+          setPosted({
+            donationId: done.donationId,
+            foodName: state.decision.foodName,
+            portions: state.decision.portions,
+            pickupLines: state.decision.pickupLines,
+          });
           window.history.replaceState(null, "", window.location.pathname);
           window.scrollTo({ top: 0 });
         }
@@ -160,12 +170,13 @@ export function ReviewPanel({
   }
 
   if (posted !== null) {
-    const expires = formatDateTime(posted.expiresAt);
     return (
-      <FeedbackBanner tone="success" title="Donation posted">
-        Your donation is now available to the organization.
-        {expires === null ? "" : ` It expires on ${expires}.`}
-      </FeedbackBanner>
+      <PostedView
+        donationId={posted.donationId}
+        foodName={posted.foodName}
+        portions={posted.portions}
+        pickupLines={posted.pickupLines}
+      />
     );
   }
   if (state.status === "loading") return <p>Loading your review…</p>;

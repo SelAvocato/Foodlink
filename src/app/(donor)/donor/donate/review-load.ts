@@ -26,6 +26,7 @@ export type ReviewDecision =
   | {
       kind: "ready";
       foodName: string;
+      portions: number;
       summary: string;
       safetyLines: string[];
       pickupLines: string[];
@@ -68,6 +69,7 @@ export function decideReview(input: ReviewInput): ReviewDecision {
   return {
     kind: "ready",
     foodName: details.foodName,
+    portions: details.portions,
     summary: summaryLine({
       portions: details.portions,
       categoryName: input.categoryName,
