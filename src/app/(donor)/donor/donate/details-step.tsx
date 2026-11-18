@@ -532,11 +532,7 @@ export function DetailsStep({
           ))}
         </ul>
 
-        {outcome === null ? null : outcome.kind === "success" ? (
-          <FeedbackBanner tone="success" title="Details saved" className="mt-8">
-            The next step is not available yet.
-          </FeedbackBanner>
-        ) : (
+        {outcome === null || outcome.kind === "success" ? null : (
           <FeedbackBanner tone="error" title="Could not save the details" className="mt-8">
             {outcome.message}
           </FeedbackBanner>

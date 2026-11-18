@@ -8,6 +8,7 @@ import { allergenCodesFromDraftList, type AllergenOption } from "./checklist-log
 import { DonateGuide } from "./donate-guide";
 import { DetailsStep } from "./details-step";
 import { PhotoStep, type FoodCategoryOption } from "./photo-step";
+import { ReviewPanel } from "./review-panel";
 import {
   deriveResumeStep,
   lookupDraft,
@@ -16,7 +17,7 @@ import {
   type ResumeDraft,
 } from "./resume-logic";
 
-type Step = "guide" | "photo" | "checklist" | "details" | "resume";
+type Step = "guide" | "photo" | "checklist" | "details" | "review" | "resume";
 
 type OptionsState =
   | { status: "loading" }
@@ -32,7 +33,7 @@ type ResumeOutcome =
       kind: "found";
       draft: ResumeDraft;
       allergenCodes: string[];
-      step: "photo" | "checklist" | "details";
+      step: "photo" | "checklist" | "details" | "review";
     }
   | { kind: "missing" }
   | { kind: "failed" };
@@ -51,6 +52,9 @@ type DonateWizardProps = {
   hasDraftParam: boolean;
   initialDraftId: string | null;
 };
+
+// One stable empty list, so the review panel does not reload on every wizard render.
+const NO_ALLERGENS: AllergenOption[] = [];
 
 const foodOptionsSchema = z.strictObject({
   categories: z.array(
@@ -168,9 +172,7 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
         checklistComplete,
         pickupSaved,
       });
-      // Temporary: the review step lands with W7, so a finished draft opens on details.
-      const step = derived === "review" ? "details" : derived;
-      return { kind: "found", draft: outcome.draft, allergenCodes, step };
+      return { kind: "found", draft: outcome.draft, allergenCodes, step: derived };
     } catch {
       return { kind: "failed" };
     }
@@ -267,8 +269,22 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
     window.scrollTo({ top: 0 });
   }
 
-  /** The details step stays on its "next step not available yet" banner; the next step lands with W7. */
-  function handleDetailsSaved() {}
+  function handleDetailsSaved() {
+    setStep("review");
+    window.scrollTo({ top: 0 });
+  }
+
+  /** Back and "Edit details" on the review step both return to the details step. */
+  function handleReviewBack() {
+    setStep("details");
+    window.scrollTo({ top: 0 });
+  }
+
+  /** The review found a step that is not finished (a draft changed elsewhere). */
+  function handleReviewNeeds(next: "checklist" | "details") {
+    setStep(next);
+    window.scrollTo({ top: 0 });
+  }
 
   if (step === "checklist" && passedDraft !== null) {
     return (
@@ -292,6 +308,20 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
         donorLabel={donorLabel}
         onBack={handleDetailsBack}
         onSaved={handleDetailsSaved}
+      />
+    );
+  }
+
+  if (step === "review" && passedDraft !== null) {
+    return (
+      <ReviewPanel
+        donationId={passedDraft.donationId}
+        categoryName={passedDraft.category.name}
+        requiresPreparedTime={passedDraft.category.requiresPreparedTime}
+        donorLabel={donorLabel}
+        allergenOptions={options.status === "ready" ? options.allergens : NO_ALLERGENS}
+        onNeeds={handleReviewNeeds}
+        onBack={handleReviewBack}
       />
     );
   }
