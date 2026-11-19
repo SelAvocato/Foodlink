@@ -8,7 +8,6 @@ const protectedPaths: ReadonlyArray<{ prefix: string; roles: readonly string[]; 
     { prefix: "/api/admin", roles: ["ADMIN"] },
     { prefix: "/donor", roles: ["DONOR"] },
     { prefix: "/api/donor", roles: ["DONOR"] },
-    { prefix: "/staff", roles: ["ADMIN"] },
     { prefix: "/volunteer", roles: ["VOLUNTEER"] },
     { prefix: "/api/volunteer", roles: ["VOLUNTEER"] },
 ];
@@ -36,5 +35,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/admin/:path*", "/api/admin/:path*", "/donor/:path*", "/api/donor/:path*", "/staff/:path*", "/volunteer/:path*", "/api/volunteer/:path*"],
+    matcher: ["/admin/:path*", "/api/admin/:path*", "/donor/:path*", "/api/donor/:path*", "/volunteer/:path*", "/api/volunteer/:path*"],
 };

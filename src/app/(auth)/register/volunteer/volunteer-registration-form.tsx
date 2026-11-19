@@ -119,7 +119,7 @@ export function VolunteerRegistrationForm() {
       <div className="rounded-xl bg-(--fl-card) p-6 sm:p-8">
         <h2 className="text-lg font-semibold">Application submitted</h2>
         <p className="mt-2 text-sm text-(--fl-muted)">
-          Staff will review your ID. You will receive an email decision. Once approved, you can log
+          An admin will review your ID. You will receive an email decision. Once approved, you can log
           in.
         </p>
         <Link href="/login" className="mt-6 inline-block text-sm text-(--fl-primary) hover:underline">
