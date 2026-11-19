@@ -202,13 +202,16 @@ export function mapRow(item: DonationListItemJson, timeZone?: string): DonationR
     portions: item.portions,
     status: statusLabel(item.status),
     pickup: pickupText ?? DASH,
-    // Only drafts have a target page so far (p13 is not built).
+    // Drafts resume the wizard; every other row opens its tracking screen (p13).
     action: isDraftStatus(item.status)
       ? {
           label: "Resume draft",
           href: `/donor/donate?draft=${encodeURIComponent(item.donationId)}`,
         }
-      : null,
+      : {
+          label: "Track donation",
+          href: `/donor/donations/${encodeURIComponent(item.donationId)}`,
+        },
   };
 }
 
