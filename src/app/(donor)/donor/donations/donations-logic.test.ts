@@ -250,16 +250,24 @@ describe("mapRow", () => {
     }
   });
 
-  it("gives every other status no link", () => {
+  it("links every non-draft status to its tracking screen", () => {
     for (const status of Object.values(DonationStatus)) {
       if (status === DonationStatus.DRAFT || status === DonationStatus.SCREENED) continue;
-      expect(mapRow(item({ status }), "UTC").action).toBeNull();
+      expect(mapRow(item({ status }), "UTC").action).toEqual({
+        label: "Track donation",
+        href: "/donor/donations/9fc03951-0000-4000-8000-000000000001",
+      });
     }
   });
 
   it("encodes the draft id in the link", () => {
     const row = mapRow(item({ status: DonationStatus.DRAFT, donationId: "a b" }), "UTC");
     expect(row.action?.href).toBe("/donor/donate?draft=a%20b");
+  });
+
+  it("encodes the donation id in the tracking link", () => {
+    const row = mapRow(item({ status: DonationStatus.ASSIGNED, donationId: "a b" }), "UTC");
+    expect(row.action?.href).toBe("/donor/donations/a%20b");
   });
 });
 
