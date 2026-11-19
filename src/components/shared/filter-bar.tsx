@@ -36,7 +36,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="border-transparent bg-transparent px-2 focus-visible:ring-ring"
+        className="border-transparent bg-transparent px-2 focus-visible:ring-2"
       />
     </div>
   );
@@ -61,7 +61,7 @@ export function FilterSelect({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 min-w-32 border-transparent bg-transparent px-2 pr-9 focus-visible:ring-ring"
+        className="h-11 min-w-32 border-transparent bg-transparent px-2 pr-9 focus-visible:ring-2"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

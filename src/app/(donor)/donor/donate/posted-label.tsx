@@ -32,7 +32,7 @@ export function PostedLabel({
   onPrint,
   onSaveImage,
   saveDisabled = false,
-  trackHref = "/donor/dashboard",
+  trackHref = "/donor/donations",
 }: PostedLabelProps) {
   return (
     <div className="flex flex-col gap-8">

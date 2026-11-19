@@ -2,6 +2,7 @@ export * from "./tones";
 export * from "./feedback-banner";
 export * from "./empty-state";
 export * from "./skeleton";
+export * from "./table-skeleton";
 export * from "./form-field";
 export * from "./page-header";
 export * from "./section-card";
