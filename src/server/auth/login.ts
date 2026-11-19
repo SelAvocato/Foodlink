@@ -71,10 +71,15 @@ export class LoginError extends Error {
     }
 }
 
-function lockoutDurationMinutes(failedAttempt: number) {
-    if (failedAttempt >= 7) return 60;
-    if (failedAttempt === 6) return 30;
-    return 15;
+/** Progressive, non-permanent lockout ladder (team decision): 1-4 free, then 30s/1m/5m/15m/30m/60m. Zero = do not lock. */
+export function lockoutDurationSeconds(failedAttempt: number) {
+    if (failedAttempt < 5) return 0;
+    if (failedAttempt >= 10) return 3600;
+    if (failedAttempt === 9) return 1800;
+    if (failedAttempt === 8) return 900;
+    if (failedAttempt === 7) return 300;
+    if (failedAttempt === 6) return 60;
+    return 30;
 }
 
 export type AuthenticatedUser = {
@@ -137,9 +142,7 @@ export async function authenticateLogin(
         const validPassword = await verify(user.user_credentials.password_hash, password);
         if (!validPassword) {
             const failedAttempt = user.user_credentials.failed_login_count + 1;
-            const lockoutMinutes = failedAttempt >= 5
-                ? lockoutDurationMinutes(failedAttempt)
-                : 0;
+            const lockoutSeconds = lockoutDurationSeconds(failedAttempt);
             const updated = await prisma.user_credentials.updateMany({
                 where: {
                     user_id: user.id,
@@ -147,8 +150,8 @@ export async function authenticateLogin(
                 },
                 data: {
                     failed_login_count: { increment: 1 },
-                    locked_until: lockoutMinutes
-                        ? new Date(Date.now() + lockoutMinutes * 60_000)
+                    locked_until: lockoutSeconds
+                        ? new Date(Date.now() + lockoutSeconds * 1_000)
                         : null,
                 },
             });
