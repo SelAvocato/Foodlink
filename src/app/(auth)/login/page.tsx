@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { roleHome } from "@/lib/role-home";
 import { AuthSplitLayout } from "@/features/auth/auth-split-layout";
-import { LoginForm } from "./login-form";
+import { LoginForm, loginLinkClass } from "./login-form";
 
 export const metadata: Metadata = {
   title: "Login — FoodLink",
@@ -24,19 +24,20 @@ export default async function LoginPage() {
       formTitle="Login to FoodLink"
       formSubtitle="Use your registered email and password."
     >
-      <LoginForm />
-
-      <hr className="my-6 border-border" />
-      <p className="text-sm text-muted-foreground">
-        New here?{" "}
-        <Link href="/register/donor" className="text-primary hover:underline">
-          Register as donor
-        </Link>
-        {" / "}
-        <Link href="/register/volunteer" className="text-primary hover:underline">
-          Volunteer
-        </Link>
-      </p>
+      <LoginForm
+        footer={
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+            New here?{" "}
+            <Link href="/register/donor" className={loginLinkClass}>
+              Register as donor
+            </Link>
+            <span aria-hidden>/</span>
+            <Link href="/register/volunteer" className={loginLinkClass}>
+              Volunteer
+            </Link>
+          </p>
+        }
+      />
     </AuthSplitLayout>
   );
 }
