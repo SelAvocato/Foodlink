@@ -6,11 +6,11 @@ export type TimelineStep = { title: string; detail: string; done: boolean };
 /** Donation journey (p13). Done/Pending is written for screen readers. */
 export function Timeline({ steps }: { steps: TimelineStep[] }) {
   return (
-    <ol className="space-y-8">
+    <ol>
       {steps.map((s, i) => (
-        <li key={s.title} className="relative flex gap-4">
+        <li key={s.title} className="relative flex gap-4 pb-[54px] last:pb-0">
           {i < steps.length - 1 ? (
-            <span aria-hidden className={cn("absolute left-[11px] top-6 h-full w-0.5", s.done ? "bg-primary" : "bg-border")} />
+            <span aria-hidden className={cn("absolute bottom-0 left-[11px] top-6 w-0.5", s.done ? "bg-primary" : "bg-border")} />
           ) : null}
           <span
             aria-hidden
