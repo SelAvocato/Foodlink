@@ -20,15 +20,6 @@ import {
 } from "./photo-step-logic";
 import { parsePhotoUrl } from "./resume-logic";
 
-// Static list for the preview route only: the wizard loads the categories allowed for the donor type.
-export const PREVIEW_CATEGORIES = [
-  { code: "COOKED_MEALS", name: "Cooked Meals", requiresPreparedTime: true, requiresStorageInfo: true },
-  { code: "BAKERY", name: "Bakery", requiresPreparedTime: true, requiresStorageInfo: true },
-  { code: "FRESH_PRODUCE", name: "Whole Fresh Produce", requiresPreparedTime: false, requiresStorageInfo: false },
-  { code: "PACKAGED_FOOD", name: "Sealed Packaged Food", requiresPreparedTime: false, requiresStorageInfo: false },
-  { code: "BEVERAGES", name: "Sealed Beverages", requiresPreparedTime: false, requiresStorageInfo: false },
-];
-
 export type FoodCategoryOption = {
   code: string;
   name: string;
