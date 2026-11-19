@@ -5,7 +5,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen">
       <header className="flex min-h-14 items-center justify-between gap-4 border-b px-6 font-semibold">
         <span>FoodLink — Staff</span>
-        <SignOutButton className="min-h-11" callbackUrl="/staff-login" />
+        <SignOutButton className="min-h-11" callbackUrl="/login" />
       </header>
       <div className="p-6">{children}</div>
     </div>

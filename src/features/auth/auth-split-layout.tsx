@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 /**
- * p5 / p6 two-panel shell. Hero copy + form copy are props so Login and
- * Staff login share one layout. The form itself is passed as children.
+ * p5 two-panel shell. Hero copy + form copy are props so the copy stays
+ * with each caller. The form itself is passed as children.
  */
 export function AuthSplitLayout({
   heroTitle,
