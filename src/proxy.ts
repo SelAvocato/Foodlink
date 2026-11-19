@@ -8,7 +8,7 @@ const protectedPaths: ReadonlyArray<{ prefix: string; roles: readonly string[]; 
     { prefix: "/api/admin", roles: ["ADMIN"] },
     { prefix: "/donor", roles: ["DONOR"] },
     { prefix: "/api/donor", roles: ["DONOR"] },
-    { prefix: "/staff", roles: ["ADMIN"], login: "/staff-login" },
+    { prefix: "/staff", roles: ["ADMIN"] },
     { prefix: "/volunteer", roles: ["VOLUNTEER"] },
     { prefix: "/api/volunteer", roles: ["VOLUNTEER"] },
 ];
