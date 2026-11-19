@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
+import { Eye, EyeOff } from "lucide-react";
 import { loginSchema } from "@/contracts/auth";
 import { roleHome } from "@/lib/role-home";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const [lockoutExpired, setLockoutExpired] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -132,19 +134,38 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
         )}
       </FormField>
 
-      <FormField
-        label="Password"
-        error={fieldErrors.password}
-        labelAction={
-          <Link href="/forgot" className="text-primary hover:underline">
-            Forgot password?
-          </Link>
-        }
-      >
+      <FormField label="Password" error={fieldErrors.password}>
         {(p) => (
-          <Input {...p} name="password" type="password" autoComplete="current-password" placeholder="Enter your password" className="min-h-11" />
+          <div className="relative">
+            <Input
+              {...p}
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="Enter your password"
+              className="min-h-11 pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {showPassword ? <EyeOff className="size-6" aria-hidden /> : <Eye className="size-6" aria-hidden />}
+            </button>
+          </div>
         )}
       </FormField>
+
+      <div className="flex justify-end">
+        <Link
+          href="/forgot"
+          className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       {lockedOut ? (
         <FeedbackBanner tone="warning" title="Account temporarily locked">
