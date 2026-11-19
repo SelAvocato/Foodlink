@@ -15,7 +15,7 @@ type PostedLabelProps = {
 };
 
 const NEXT_STEPS = [
-  "Staff accept or decline your donation.",
+  "An admin accepts or declines your donation.",
   "An active volunteer is assigned.",
   "The volunteer scans this label and inspects the food.",
   "Track delivery and distribution from My donations.",
@@ -69,7 +69,7 @@ export function PostedLabel({
             ))}
           </ol>
           <p className="mt-auto pt-8 text-sm text-(--fl-muted)">
-            QR access is limited to you, staff, and the assigned volunteer. No raw
+            QR access is limited to you, admins, and the assigned volunteer. No raw
             donation IDs are encoded in the QR.
           </p>
         </section>
