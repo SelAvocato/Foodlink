@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getEnv } from "@/lib/env.server";
 
-const protectedPaths: ReadonlyArray<{ prefix: string; roles: readonly string[] }> = [
+const protectedPaths: ReadonlyArray<{ prefix: string; roles: readonly string[]; login?: string }> = [
     { prefix: "/admin", roles: ["ADMIN"] },
     { prefix: "/api/admin", roles: ["ADMIN"] },
     { prefix: "/donor", roles: ["DONOR"] },
@@ -19,16 +19,17 @@ export async function proxy(request: NextRequest) {
     );
     if (!rule) return NextResponse.next();
 
+    const login = rule.login ?? "/login";
     const token = await getToken({ req: request, secret: getEnv().AUTH_SECRET });
     if (!token?.id) {
         return request.nextUrl.pathname.startsWith("/api/")
             ? NextResponse.json({ error: "UNAUTHENTICATED", message: "Sign in to access this resource." }, { status: 401 })
-            : NextResponse.redirect(new URL("/login", request.url));
+            : NextResponse.redirect(new URL(login, request.url));
     }
     if (token.status !== "ACTIVE" || typeof token.role !== "string" || !rule.roles.includes(token.role)) {
         return request.nextUrl.pathname.startsWith("/api/")
             ? NextResponse.json({ error: "FORBIDDEN", message: "Your role cannot access this resource." }, { status: 403 })
-            : NextResponse.redirect(new URL("/login?error=forbidden", request.url));
+            : NextResponse.redirect(new URL(login, request.url));
     }
     return NextResponse.next();
 }

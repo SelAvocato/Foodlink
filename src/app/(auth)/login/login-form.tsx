@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
+import { Eye, EyeOff } from "lucide-react";
 import { loginSchema } from "@/contracts/auth";
 import { roleHome } from "@/lib/role-home";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { FeedbackBanner } from "@/components/shared/feedback-banner";
 
 const LOCKOUT_STORAGE_KEY = "fl-login-locked-until";
 const LOCKOUT_ERROR_PREFIX = "account_locked:";
+const loginLinkClass =
+  "inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -39,11 +42,12 @@ function formatCountdown(totalSeconds: number) {
   return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
-export function LoginForm() {
+export function LoginForm({ footer }: { footer?: React.ReactNode }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const [lockoutExpired, setLockoutExpired] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -123,26 +127,45 @@ export function LoginForm() {
   }
 
   return (
-    <form className="mt-8 flex flex-col gap-5" noValidate onSubmit={onSubmit}>
+    <form className="space-y-6" noValidate onSubmit={onSubmit}>
       <FormField label="Email" error={fieldErrors.email}>
         {(p) => (
-          <Input {...p} name="email" type="email" autoComplete="email" placeholder="name@example.com" />
+          <Input {...p} name="email" type="email" autoComplete="email" inputMode="email" placeholder="name@example.com" className="min-h-11" />
         )}
       </FormField>
 
-      <FormField
-        label="Password"
-        error={fieldErrors.password}
-        labelAction={
-          <Link href="/forgot" className="text-primary hover:underline">
-            Forgot password?
-          </Link>
-        }
-      >
+      <FormField label="Password" error={fieldErrors.password}>
         {(p) => (
-          <Input {...p} name="password" type="password" autoComplete="current-password" placeholder="Enter your password" />
+          <div className="relative">
+            <Input
+              {...p}
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="Enter your password"
+              className="min-h-11 pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {showPassword ? <EyeOff className="size-6" aria-hidden /> : <Eye className="size-6" aria-hidden />}
+            </button>
+          </div>
         )}
       </FormField>
+
+      <div className="flex justify-end">
+        <Link
+          href="/forgot"
+          className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       {lockedOut ? (
         <FeedbackBanner tone="warning" title="Account temporarily locked">
@@ -160,9 +183,13 @@ export function LoginForm() {
         </div>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={submitting || lockedOut} aria-busy={submitting}>
-        {submitting ? "Logging in." : lockedOut ? "Locked" : "Login"}
+      <Button type="submit" className="min-h-11 min-w-[140px]" disabled={submitting || lockedOut} aria-busy={submitting}>
+        {submitting ? "Signing in…" : lockedOut ? "Locked" : "Login"}
       </Button>
+
+      {footer ? <div>{footer}</div> : null}
     </form>
   );
 }
+
+export { loginLinkClass };

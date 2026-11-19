@@ -19,7 +19,7 @@ export const organizationNav: NavItem[] = [
   { label: "Assignments", href: "/admin/assignments", icon: UserCheck },
   { label: "Donation monitor", href: "/admin/monitor", icon: Clock },
   { label: "Donors & volunteers", href: "/admin/people", icon: Users },
-  { label: "Staff accounts", href: "/admin/staff", icon: UserRound },
+  { label: "Admin accounts", href: "/admin/admins", icon: UserRound },
   { label: "Incidents", href: "/admin/incidents", icon: ShieldAlert },
   { label: "Analytics & reports", href: "/admin/analytics", icon: BarChart3 },
   { label: "Audit log", href: "/admin/audit", icon: ScrollText },

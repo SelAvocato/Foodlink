@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Ends the session and returns to the login page. Full-width ghost button;
- * pass className to fit tighter rows. Staff workspaces may pass
+ * pass className to fit tighter rows. Admin workspaces may pass
  * callbackUrl="/admin/login".
  */
 export function SignOutButton({

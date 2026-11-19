@@ -48,7 +48,7 @@ type StepBanner = {
 const WAITING_BANNER: StepBanner = {
   tone: "warning",
   title: "Waiting for review",
-  message: "Staff will review your photo.",
+  message: "An admin will review your photo.",
   restart: false,
 };
 
@@ -389,7 +389,7 @@ export function PhotoStep({
           <p className="mt-8 text-base text-(--fl-muted)">What happens next?</p>
           <ul className="mt-5 flex flex-col gap-4 text-base text-(--fl-muted)">
             <li>Pass → Continue to checklist</li>
-            <li>Review → Staff review the photo; you’ll be notified.</li>
+            <li>Review → An admin reviews the photo; you’ll be notified.</li>
             <li>Flag → Donation is rejected with a reason.</li>
             <li>You can retake the photo before screening.</li>
           </ul>
