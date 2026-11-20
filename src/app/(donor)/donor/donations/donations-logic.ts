@@ -276,8 +276,10 @@ export function buildHighlights(
       tone: "error",
       title: row.code + " · " + row.status,
       text: notCompleted.foodName,
-      // View reason and Donate again wait for p13.
-      actions: [],
+      // No reason is stored, so there is no View reason; Donate again is not built.
+      // Only View details (the p13 tracking screen) is offered.
+      actions:
+        row.action === null ? [] : [{ label: "View details", href: row.action.href, arrow: true }],
     });
   }
   return cards;

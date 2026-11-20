@@ -372,14 +372,17 @@ describe("buildHighlights", () => {
   it("builds the not completed card from the code, the status and the food name", () => {
     const [card] = buildHighlights(
       null,
-      item({ status: DonationStatus.EXPIRED, foodName: "Test bread" }),
+      item({ status: DonationStatus.EXPIRED, foodName: "Test bread", donationId: "don-1" }),
       "UTC",
     );
     expect(card.label).toBe("Not completed");
     expect(card.tone).toBe("error");
     expect(card.title).toBe("#9FC03951 · Expired");
     expect(card.text).toBe("Test bread");
-    expect(card.actions).toEqual([]);
+    // View reason and Donate again are not offered; View details opens p13.
+    expect(card.actions).toEqual([
+      { label: "View details", href: "/donor/donations/don-1", arrow: true },
+    ]);
   });
 
   it("puts the drafts card first when both exist", () => {
