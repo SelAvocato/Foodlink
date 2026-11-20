@@ -29,7 +29,7 @@ export type DonationRowView = {
   status: string;
   /** The pickup window as text, or a dash. */
   pickup: string;
-  /** A link shown beside the pickup text; null until the target page exists. */
+  /** The row's link: Resume draft for drafts, Track donation for every other row. */
   action: { label: string; href: string } | null;
 };
 
