@@ -147,6 +147,7 @@ Before opening a PR: lint, typecheck, test and build must pass locally.
 - My donations: a page past the end (rows left the tab while the donor was on a later page) shows the empty state with the true total and does not jump back. The tab counts come from the last successful read and stay blank until one succeeds; they always describe the whole tab and ignore search and status. A failed read of the Drafts or Not completed card hides that card and does not block the table.
 - `src/components/shared/filter-bar.tsx` now passes `focus-visible:ring-2` (was `focus-visible:ring-ring`, a full-strength 3 px ring). `src/components/shared/index.ts` also exports the new `DataTableSkeleton` from `table-skeleton.tsx`. Both are shared files changed for My donations; the owners were not messaged.
 - It is not confirmed whether the shared `cn()` merges conflicting Tailwind classes (`src/lib/utils.ts` re-exports `cn` from the `cn` package). p13 uses Tailwind v4 important suffixes (`p-8!`, `bg-[#hex]!`) where it overrides a shared component; the suffix was only checked by eye.
+- After deleting or renaming a route, `npm run typecheck` and `npm run build` can fail with errors only in `.next/dev/types/validator.ts` (stale generated types). Fix: stop `npm run dev`, run `rm -rf .next/dev/types`, then rerun.
 
 ## 9. Decision log
 
