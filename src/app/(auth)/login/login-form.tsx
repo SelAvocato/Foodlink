@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/form-field";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
+import { accountStatusFromError } from "./login-status";
 
 const LOCKOUT_STORAGE_KEY = "fl-login-locked-until";
 const LOCKOUT_ERROR_PREFIX = "account_locked:";
@@ -115,6 +116,11 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
         setLockoutUntil(until);
         setNow(Date.now());
         window.sessionStorage.setItem(LOCKOUT_STORAGE_KEY, `${LOCKOUT_ERROR_PREFIX}${until.toISOString()}`);
+        return;
+      }
+      const accountStatus = accountStatusFromError(result.error);
+      if (accountStatus) {
+        router.replace(`/account-status?status=${accountStatus}`);
         return;
       }
       setFormError("Invalid username or password");
