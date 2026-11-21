@@ -19,6 +19,8 @@ export function ScanView() {
   const tokenRef = useRef<string | null>(null);
   // Only the newest attempt may change the screen or navigate.
   const runRef = useRef(0);
+  // False once the page is closed, so a late answer cannot move the volunteer.
+  const mountedRef = useRef(false);
 
   const submit = useCallback(
     async (token: string) => {
@@ -51,6 +53,15 @@ export function ScanView() {
   );
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      // Closing the page invalidates any scan still in flight.
+      mountedRef.current = false;
+      runRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     // StrictMode runs this effect twice; the ref keeps it to one submission.
     if (tokenRef.current !== null) return;
     const token = tokenFromHash(window.location.hash);
@@ -59,7 +70,9 @@ export function ScanView() {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
     tokenRef.current = token;
     // The microtask keeps the first state write out of the effect body.
-    void Promise.resolve().then(() => submit(token));
+    void Promise.resolve().then(() => {
+      if (mountedRef.current) void submit(token);
+    });
   }, [submit]);
 
   function retryScan() {

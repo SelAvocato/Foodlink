@@ -186,6 +186,10 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   const panel = screeningPanel(verdict);
 
   async function uploadPhoto(file: File) {
+    // The old photo's verdict must not outlive a replaced preview: acceptance
+    // waits until this upload has succeeded.
+    setVerdict(null);
+    setPhotoUploaded(false);
     setBusy(true);
     setTrouble(null);
     const form = new FormData();
@@ -240,6 +244,17 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   }
 
   async function submit(decision: SubmitDecision) {
+    // A retry must meet the same rules as a first click: a rejection whose reason
+    // was cleared would otherwise be saved as an acceptance.
+    if (decision === "reject" ? !canReject : !canAccept) {
+      setTrouble({
+        message: "Check the photo, the answers and the reason, then try again.",
+        href: null,
+        linkLabel: null,
+        retry: null,
+      });
+      return;
+    }
     lastDecision.current = decision;
     setBusy(true);
     setTrouble(null);
