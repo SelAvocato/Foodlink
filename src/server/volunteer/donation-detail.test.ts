@@ -88,8 +88,8 @@ describe("readVolunteerDonationDetail", () => {
     });
   });
 
-  it.each([DonationStatus.ASSIGNED, DonationStatus.PICKED_UP])(
-    "shows the donor phone while the status is %s",
+  it.each([DonationStatus.ASSIGNED, DonationStatus.PICKED_UP, DonationStatus.DELIVERED])(
+    "returns the donor phone while the status is %s",
     async (status) => {
       const { store } = fakeStore(row({ status }));
 
@@ -99,15 +99,6 @@ describe("readVolunteerDonationDetail", () => {
       if (result.ok) expect(result.task.donorPhone).toBe("+639170000000");
     },
   );
-
-  it("hides the donor phone for a delivered task", async () => {
-    const { store } = fakeStore(row({ status: DonationStatus.DELIVERED }));
-
-    const result = await run(store);
-
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.task.donorPhone).toBeNull();
-  });
 
   it("answers NOT_FOUND when the store finds no task", async () => {
     const { store } = fakeStore(null);

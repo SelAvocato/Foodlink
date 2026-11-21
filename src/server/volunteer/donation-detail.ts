@@ -1,11 +1,10 @@
-import { DonationStatus } from "@/contracts/enums";
 import {
   VOLUNTEER_DONATION_STATUSES,
   type VolunteerDonationStatus,
 } from "@/contracts/volunteer-donation-list";
 import type { VolunteerDonationDetail } from "@/contracts/volunteer-donation-detail";
 
-/** The task as stored, before the short code and the phone rule are applied. */
+/** The task as stored, before the short code is applied. */
 export type VolunteerDonationDetailRow = {
   donationId: string;
   foodName: string;
@@ -35,17 +34,12 @@ export type VolunteerDonationDetailResult =
 // Same rule as donation-list.ts, whose constant is not exported.
 const SHORT_CODE_LENGTH = 8;
 
-/** Contact details only go to the volunteer while the food is still in their hands. */
-const PHONE_VISIBLE_STATUSES: readonly VolunteerDonationStatus[] = [
-  DonationStatus.ASSIGNED,
-  DonationStatus.PICKED_UP,
-];
-
 /**
  * Reads one task for the volunteer currently assigned to it. The store already
  * filters by volunteer, active assignment, deletion and the list statuses, so a
- * miss is one NOT_FOUND for every reason. The donor phone is dropped for any
- * status that is not ASSIGNED or PICKED_UP.
+ * miss is one NOT_FOUND for every reason. The donor phone is returned for every
+ * allowed status, the same as the task list (whether the volunteer still sees it
+ * after the donation closes is an open decision).
  */
 export async function readVolunteerDonationDetail(
   deps: { store: VolunteerDonationDetailStore },
@@ -60,8 +54,6 @@ export async function readVolunteerDonationDetail(
   });
   if (!row) return { ok: false, error: "NOT_FOUND" };
 
-  const phoneVisible = PHONE_VISIBLE_STATUSES.includes(row.status);
-
   return {
     ok: true,
     task: {
@@ -75,7 +67,7 @@ export async function readVolunteerDonationDetail(
       pickupStart: row.pickupStart,
       pickupEnd: row.pickupEnd,
       donorName: row.donorName,
-      donorPhone: phoneVisible ? row.donorPhone : null,
+      donorPhone: row.donorPhone,
     },
   };
 }

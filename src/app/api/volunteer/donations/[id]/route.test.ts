@@ -139,7 +139,7 @@ describe("GET /api/volunteer/donations/[id]", () => {
     });
   });
 
-  it("returns a null donor phone for a delivered task", async () => {
+  it("returns the donor phone for a delivered task", async () => {
     mocks.store.findTask.mockResolvedValue({
       ...taskRow(),
       status: DonationStatus.DELIVERED,
@@ -148,7 +148,7 @@ describe("GET /api/volunteer/donations/[id]", () => {
     const res = await get(DONATION_ID);
 
     expect(res.status).toBe(200);
-    expect((await res.json()).donorPhone).toBeNull();
+    expect((await res.json()).donorPhone).toBe("+639170000000");
   });
 
   it("answers 404 for an id that is not a uuid, without a store read", async () => {
