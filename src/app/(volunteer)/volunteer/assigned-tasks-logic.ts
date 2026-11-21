@@ -196,3 +196,9 @@ export type LoadFailure = "session" | "error";
 export function loadFailure(status: number): LoadFailure {
   return status === 401 || status === 403 ? "session" : "error";
 }
+
+/** Milliseconds until just after the next local midnight, when "Today" changes. */
+export function msUntilNextDay(now: Date): number {
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+  return next.getTime() - now.getTime();
+}

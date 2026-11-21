@@ -25,6 +25,7 @@ import {
   filterItems,
   loadFailure,
   mapRow,
+  msUntilNextDay,
   parseTasksResponse,
   type LoadFailure,
   type TaskItem,
@@ -98,8 +99,15 @@ export function AssignedTasksView() {
     };
   }, [retry]);
 
+  // "Today" follows the local calendar: refresh the clock just after local midnight.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setTimeout(() => setNow(new Date()), msUntilNextDay(now));
+    return () => clearTimeout(timer);
+  }, [now]);
+
   const items = tasks.status === "ready" ? tasks.items : [];
-  const visible = filterItems(items, { search, status, date, now: new Date() });
+  const visible = filterItems(items, { search, status, date, now });
   const banner = tasks.status === "ready" ? bannerText(items) : null;
   const contact = tasks.status === "ready" ? contactLine(items) : null;
 

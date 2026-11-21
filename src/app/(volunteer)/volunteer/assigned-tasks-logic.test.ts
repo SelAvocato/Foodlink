@@ -6,6 +6,7 @@ import {
   filterItems,
   isToday,
   loadFailure,
+  msUntilNextDay,
   mapRow,
   matchesSearch,
   parseTasksResponse,
@@ -369,5 +370,20 @@ describe("unreadable dates", () => {
 
   it("never matches Today", () => {
     expect(isToday("not-a-date", new Date(2026, 10, 21, 12, 0, 0))).toBe(false);
+  });
+});
+
+describe("msUntilNextDay", () => {
+  it("lands just after the next local midnight", () => {
+    const now = new Date(2026, 10, 21, 12, 0, 0);
+    const after = new Date(now.getTime() + msUntilNextDay(now));
+    expect([after.getMonth(), after.getDate(), after.getHours(), after.getMinutes()]).toEqual([10, 22, 0, 0]);
+    expect(msUntilNextDay(now)).toBeGreaterThan(0);
+  });
+
+  it("rolls over the end of a month", () => {
+    const now = new Date(2026, 10, 30, 23, 59, 30);
+    const after = new Date(now.getTime() + msUntilNextDay(now));
+    expect([after.getMonth(), after.getDate()]).toEqual([11, 1]);
   });
 });
