@@ -77,6 +77,27 @@ describe("donorChecklistLine", () => {
     expect(line).toBe("Donor checklist: Consume by Nov 22, 6:00 PM · Stored at 4.5°C");
   });
 
+  it("shows a declared allergen even when every checklist answer is missing", () => {
+    expect(donorChecklistLine(ready({ allergens: ["Peanuts"] }), NOW)).toBe(
+      "Donor checklist: Peanuts declared",
+    );
+  });
+
+  it("accepts a response with every checklist field null and a declared allergen", () => {
+    expect(
+      parseChecklist({
+        preparedAt: null,
+        consumeByAt: null,
+        storageCondition: null,
+        storageTemperatureC: null,
+        packagingIntact: null,
+        allergensConfirmed: null,
+        notCustomerPlateLeftovers: null,
+        allergens: ["Peanuts"],
+      }),
+    ).not.toBeNull();
+  });
+
   it("says no allergens were declared when the list is empty and confirmed", () => {
     expect(donorChecklistLine(ready({ allergensConfirmed: true }), NOW)).toBe(
       "Donor checklist: No allergens declared",
