@@ -3,11 +3,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import {
-  PAGE_SIZE,
   REQUEST_TIMEOUT_MS,
-  parseTasksResponse,
   taskCode,
-  type TaskItem,
 } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
 import { PickupDecision, type ScreeningVerdict } from "@/contracts/enums";
 import {
@@ -19,16 +16,17 @@ import {
   donorChecklistLine,
   errorCode,
   errorMessage,
-  findTask,
   inspectionBody,
   outcomePanel,
   parseChecklist,
   parseOutcomeDecision,
   parsePhotoResponse,
+  parseTaskDetail,
   screeningPanel,
   type Answers,
   type ChecklistState,
   type SubmitDecision,
+  type TaskDetail,
 } from "./pickup-inspection-logic";
 
 const BUTTON =
@@ -44,7 +42,7 @@ type HeaderState =
   | { kind: "loading" }
   | { kind: "failed" }
   | { kind: "notFound" }
-  | { kind: "ready"; task: TaskItem };
+  | { kind: "ready"; task: TaskDetail };
 
 type FailureStep = "load" | "photo" | "submit" | "outcome";
 
@@ -69,25 +67,23 @@ function networkTrouble(step: FailureStep | null): Trouble {
   return { message: "Could not reach the server.", href: null, linkLabel: null, retry: step };
 }
 
-type TaskLoad = { kind: "failed"; trouble: Trouble } | { kind: "ready"; task: TaskItem | null };
+type TaskLoad = { kind: "failed"; trouble: Trouble } | { kind: "ready"; task: TaskDetail | null };
 
-/** The volunteer's assigned tasks; the header row is looked up in this page. */
-async function loadTask(base: string, donationId: string): Promise<TaskLoad> {
+/** The task itself; a 404 means it is not one of this volunteer's tasks. */
+async function loadTask(base: string): Promise<TaskLoad> {
   try {
-    const response = await fetch("/api/volunteer/donations?pageSize=" + PAGE_SIZE, {
+    const response = await fetch(base, {
       cache: "no-store",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    if (response.status === 404) return { kind: "ready", task: null };
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null);
       return { kind: "failed", trouble: troubleFrom(response.status, body, "load") };
     }
-    const items = parseTasksResponse((await response.json()) as unknown);
-    if (items === null) return { kind: "failed", trouble: networkTrouble("load") };
-    // KNOWN LIMIT: the header is found only in the first 50 tasks (pageSize=50);
-    // a donation outside them shows not found. A task-detail route is the fix.
-    // See docs/PROJECT_NOTES.md.
-    return { kind: "ready", task: findTask(items, donationId) };
+    const task = parseTaskDetail((await response.json()) as unknown);
+    if (task === null) return { kind: "failed", trouble: networkTrouble("load") };
+    return { kind: "ready", task };
   } catch {
     return { kind: "failed", trouble: networkTrouble("load") };
   }
@@ -137,7 +133,7 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
     loadRun.current += 1;
     const mine = loadRun.current;
 
-    void loadTask(base, donationId).then((result) => {
+    void loadTask(base).then((result) => {
       if (loadRun.current !== mine) return;
       if (result.kind === "failed") {
         setHeader({ kind: "failed" });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PickupDecision, ScreeningVerdict, StorageCondition } from "@/contracts/enums";
+import { VOLUNTEER_DONATION_STATUSES } from "@/contracts/volunteer-donation-list";
 import type { VolunteerChecklistResponse } from "@/contracts/volunteer-checklist";
-import type { TaskItem } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
 
 /** The pickup photo upload is slower than a read; the task allows 30 s for it only. */
 export const UPLOAD_TIMEOUT_MS = 30_000;
@@ -36,12 +36,27 @@ export function checkQuestions(portions: number | null): { key: CheckKey; questi
   ];
 }
 
-/** The row whose id equals the URL id, or null when it is outside the loaded page. */
-export function findTask(items: readonly TaskItem[], donationId: string): TaskItem | null {
-  for (const item of items) {
-    if (item.donationId === donationId) return item;
-  }
-  return null;
+const taskDetailSchema = z.object({
+  donationId: z.string(),
+  shortCode: z.string(),
+  foodName: z.string(),
+  category: z.string(),
+  portions: z.number(),
+  status: z.enum(VOLUNTEER_DONATION_STATUSES),
+  pickupAddress: z.string().nullable(),
+  pickupStart: z.string().nullable(),
+  pickupEnd: z.string().nullable(),
+  donorName: z.string(),
+  donorPhone: z.string().nullable(),
+});
+
+/** One task from the detail route (JSON dates are ISO strings). */
+export type TaskDetail = z.infer<typeof taskDetailSchema>;
+
+/** The task detail answer, or null when any part of the body is wrong. */
+export function parseTaskDetail(body: unknown): TaskDetail | null {
+  const parsed = taskDetailSchema.safeParse(body);
+  return parsed.success ? parsed.data : null;
 }
 
 const checklistSchema = z.object({

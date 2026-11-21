@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PickupDecision, ScreeningVerdict, StorageCondition } from "@/contracts/enums";
 import type { VolunteerChecklistResponse } from "@/contracts/volunteer-checklist";
-import type { TaskItem } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
 import {
   CHECKLIST_ERROR,
   CHECKLIST_LOADING,
@@ -13,15 +12,16 @@ import {
   donorChecklistLine,
   errorCode,
   errorMessage,
-  findTask,
   formatTime,
   inspectionBody,
   outcomePanel,
   parseChecklist,
   parseOutcomeDecision,
   parsePhotoResponse,
+  parseTaskDetail,
   screeningPanel,
   type ChecklistState,
+  type TaskDetail,
 } from "./pickup-inspection-logic";
 
 // Every date is built with the local constructor so the test never depends on a fixed zone.
@@ -362,8 +362,8 @@ describe("response parsing", () => {
   });
 });
 
-describe("task lookup and questions", () => {
-  const item: TaskItem = {
+describe("task detail and questions", () => {
+  const item: TaskDetail = {
     donationId: "11111111-1111-4111-8111-111111111111",
     shortCode: "A1B2C3D4",
     foodName: "Vegetable rice bowls",
@@ -377,9 +377,17 @@ describe("task lookup and questions", () => {
     donorPhone: "+630000000000",
   };
 
-  it("finds the row by donation id", () => {
-    expect(findTask([item], item.donationId)).toBe(item);
-    expect(findTask([item], "22222222-2222-4222-8222-222222222222")).toBeNull();
+  it("reads the task detail body and keeps a hidden phone null", () => {
+    expect(parseTaskDetail(item)).toEqual(item);
+    expect(parseTaskDetail({ ...item, donorPhone: null })).toEqual({ ...item, donorPhone: null });
+  });
+
+  it("rejects a body with an unknown status or a missing field", () => {
+    expect(parseTaskDetail({ ...item, status: "CLOSED" })).toBeNull();
+    expect(parseTaskDetail(null)).toBeNull();
+    const missing: Record<string, unknown> = { ...item };
+    delete missing.donorPhone;
+    expect(parseTaskDetail(missing)).toBeNull();
   });
 
   it("asks for the real portion count, or stays generic before it loads", () => {
