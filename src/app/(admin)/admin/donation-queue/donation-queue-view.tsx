@@ -60,6 +60,7 @@ type Banner = {
   tone: "success" | "warning" | "error";
   title: string;
   message: string;
+  action?: { label: string; href: string };
 };
 
 /** The queue answer, or null on any failure (network, timeout, status, wrong shape). */
@@ -204,6 +205,10 @@ export function DonationQueueView() {
         setBanner({
           tone: "success",
           title: "Donation accepted",
+          action: {
+            label: "Assign a volunteer",
+            href: "/admin/assignments?donation=" + encodeURIComponent(row.donationId),
+          },
           message: `${row.donorName} · ${row.foodName} was accepted.`,
         });
         return;
@@ -282,7 +287,7 @@ export function DonationQueueView() {
       </div>
 
       {banner ? (
-        <FeedbackBanner tone={banner.tone} title={banner.title}>
+        <FeedbackBanner tone={banner.tone} title={banner.title} action={banner.action}>
           {banner.message}
         </FeedbackBanner>
       ) : null}
