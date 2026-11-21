@@ -469,7 +469,19 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
                       <input
                         type="search"
                         value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        disabled={busy || assigned}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          setSearch(next);
+                          if (
+                            selectedId !== null &&
+                            !filterVolunteers(volunteerRows, next).some(
+                              (volunteer) => volunteer.volunteerId === selectedId,
+                            )
+                          ) {
+                            setSelectedId(null);
+                          }
+                        }}
                         placeholder="Search volunteers by name"
                         aria-label="Search volunteers by name"
                         className="mt-8 h-12 w-full rounded-lg bg-[#F5F7F5] px-4 text-sm text-[#17261F] placeholder:text-[#63746D] outline-none focus-visible:ring-2 focus-visible:ring-[#176448]"
@@ -495,7 +507,7 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
                                   name="volunteer"
                                   value={volunteer.volunteerId}
                                   checked={selected}
-                                  disabled={assigned}
+                                  disabled={busy || assigned}
                                   onChange={() => setSelectedId(volunteer.volunteerId)}
                                   className="size-4 accent-[#176448]"
                                 />
