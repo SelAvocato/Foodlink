@@ -1,6 +1,77 @@
-// Static layer (Figma p46, mobile): no data and no camera yet. The wiring step adds the
-// token from the URL fragment and the camera.
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  SCAN_TIMEOUT_MS,
+  inspectionPath,
+  isRetryable,
+  scanCopy,
+  stateFromResponse,
+  tokenFromHash,
+  type ScanState,
+} from "./scan-logic";
+
 export function ScanView() {
+  const router = useRouter();
+  const [state, setState] = useState<ScanState>({ kind: "idle" });
+  // The hash is cleared before the request, so a retry must read the token here.
+  const tokenRef = useRef<string | null>(null);
+  // Only the newest attempt may change the screen or navigate.
+  const runRef = useRef(0);
+
+  const submit = useCallback(
+    async (token: string) => {
+      runRef.current += 1;
+      const mine = runRef.current;
+      setState({ kind: "scanning" });
+
+      let next: ScanState;
+      try {
+        const response = await fetch("/api/volunteer/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+          cache: "no-store",
+          signal: AbortSignal.timeout(SCAN_TIMEOUT_MS),
+        });
+        // A body that is not JSON still has a status worth mapping.
+        const body: unknown = await response.json().catch(() => null);
+        next = stateFromResponse(response.status, body);
+      } catch {
+        // Offline, timeout, or an aborted request: the token is still in memory.
+        next = { kind: "networkError" };
+      }
+
+      if (runRef.current !== mine) return;
+      setState(next);
+      if (next.kind === "goInspection") router.replace(inspectionPath(next.donationId));
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    // StrictMode runs this effect twice; the ref keeps it to one submission.
+    if (tokenRef.current !== null) return;
+    const token = tokenFromHash(window.location.hash);
+    if (token === null) return;
+    // Drop the spent token from the address bar and from history before asking.
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    tokenRef.current = token;
+    // The microtask keeps the first state write out of the effect body.
+    void Promise.resolve().then(() => submit(token));
+  }, [submit]);
+
+  function retryScan() {
+    // The address bar no longer holds the token, so a retry reads it from memory.
+    const token = tokenRef.current;
+    if (token !== null) void submit(token);
+  }
+
+  const copy = scanCopy(state);
+  // Only an unreachable server offers a retry, and that state only follows a scan.
+  const canRetry = isRetryable(state);
+
   return (
     <div className="mx-auto w-full max-w-md px-5 py-6">
       <h1 className="text-[28px] font-semibold leading-tight text-[#17261F]">Scan pickup QR</h1>
@@ -19,6 +90,31 @@ export function ScanView() {
       <div className="mt-6 rounded-xl bg-[#EAF4EE] px-5 py-5 text-[15px] leading-6 text-[#176448]">
         The QR must belong to your assigned task and the pickup window must not have expired.
       </div>
+
+      {copy !== null ? (
+        <div
+          role={copy.tone === "error" ? "alert" : "status"}
+          className={
+            copy.tone === "error"
+              ? "mt-6 rounded-xl bg-[#EAF4EE] px-5 py-5 text-[15px] leading-6 text-[#885B16]"
+              : "mt-6 rounded-xl bg-[#EAF4EE] px-5 py-5 text-[15px] leading-6 text-[#176448]"
+          }
+        >
+          {copy.title !== null ? <p className="font-semibold">{copy.title}</p> : null}
+          {copy.body !== null ? (
+            <p className={copy.title !== null ? "mt-1" : undefined}>{copy.body}</p>
+          ) : null}
+          {canRetry ? (
+            <button
+              type="button"
+              onClick={retryScan}
+              className="mt-3 inline-flex h-11 items-center justify-center rounded-sm border border-[#885B16] px-5 text-[15px] font-semibold text-[#885B16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#885B16]"
+            >
+              Try again
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <button
         type="button"
