@@ -61,6 +61,8 @@ export type TaskRowView = {
   window: string;
   status: string;
   action: string;
+  /** Where "View task" goes; null keeps the action greyed and non-clickable. */
+  viewTaskHref: string | null;
 };
 
 export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
@@ -76,6 +78,8 @@ export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
     window: window ?? NOT_SET,
     status: STATUS_LABELS[item.status],
     action: item.status === "DELIVERED" ? "Record distribution" : "View task",
+    // Only an ASSIGNED donation has a screen to open yet, and the link carries no id or token.
+    viewTaskHref: item.status === "ASSIGNED" ? "/volunteer/scan" : null,
   };
 }
 

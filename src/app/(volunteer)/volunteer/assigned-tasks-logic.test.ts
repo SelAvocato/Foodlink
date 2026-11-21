@@ -96,6 +96,7 @@ describe("mapRow", () => {
     expect(row.food).toBe("Rice bowls");
     expect(row.status).toBe("Assigned");
     expect(row.action).toBe("View task");
+    expect(row.viewTaskHref).toBe("/volunteer/scan");
   });
 
   it("writes the p12 pickup window format", () => {
@@ -120,6 +121,19 @@ describe("mapRow", () => {
     expect(mapRow(item({ status: "PICKED_UP" })).action).toBe("View task");
     expect(mapRow(item({ status: "DELIVERED" })).status).toBe("Delivered");
     expect(mapRow(item({ status: "DELIVERED" })).action).toBe("Record distribution");
+  });
+
+  it("links View task for an ASSIGNED row only", () => {
+    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toBe("/volunteer/scan");
+  });
+
+  it("keeps PICKED_UP and DELIVERED rows non-clickable", () => {
+    expect(mapRow(item({ status: "PICKED_UP" })).viewTaskHref).toBeNull();
+    expect(mapRow(item({ status: "DELIVERED" })).viewTaskHref).toBeNull();
+  });
+
+  it("puts no donation id in the View task link", () => {
+    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).not.toContain(DONATION_ID);
   });
 });
 
