@@ -171,7 +171,6 @@ describe("PUT /api/volunteer/donations/[id]/inspection", () => {
   it.each([
     ["missing answers", { reason: "No." }],
     ["a non-boolean answer", { ...ALL_YES, matchesDescription: "yes" }],
-    ["a reason with all yes", { ...ALL_YES, reason: "Just in case." }],
     ["a no without a reason", { ...ALL_YES, looksSmellsNormal: false }],
     ["a client decision", { ...ALL_YES, decision: PickupDecision.ACCEPTED }],
     ["a client volunteer id", { ...ALL_YES, volunteerId: "someone-else" }],
@@ -222,6 +221,22 @@ describe("PUT /api/volunteer/donations/[id]/inspection", () => {
         decision: PickupDecision.REJECTED,
         packagingSealedClean: false,
         reason: "The container was open.",
+      }),
+    );
+  });
+
+  it("stores REJECTED when every answer is yes but a reason is sent", async () => {
+    const res = await put({ ...ALL_YES, reason: "Not sure about it." });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ decision: PickupDecision.REJECTED });
+    expect(mocks.tx.upsertInspection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        decision: PickupDecision.REJECTED,
+        matchesDescription: true,
+        packagingSealedClean: true,
+        looksSmellsNormal: true,
+        reason: "Not sure about it.",
       }),
     );
   });

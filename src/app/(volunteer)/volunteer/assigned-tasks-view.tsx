@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
@@ -163,14 +164,24 @@ export function AssignedTasksView() {
                 <TableCell>{row.window}</TableCell>
                 <TableCell>{row.status}</TableCell>
                 <TableCell>
-                  <span
-                    aria-disabled="true"
-                    title="Available once the screen for this action exists"
-                    className="inline-flex cursor-not-allowed items-center gap-1.5 text-[#63746D] opacity-50"
-                  >
-                    {row.action}
-                    <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
-                  </span>
+                  {row.viewTaskHref !== null ? (
+                    <Link
+                      href={row.viewTaskHref}
+                      className="inline-flex items-center gap-1.5 rounded-sm text-[#176448] hover:text-[#12513a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#176448]"
+                    >
+                      {row.action}
+                      <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                    </Link>
+                  ) : (
+                    <span
+                      aria-disabled="true"
+                      title="Available once the screen for this action exists"
+                      className="inline-flex cursor-not-allowed items-center gap-1.5 text-[#63746D] opacity-50"
+                    >
+                      {row.action}
+                      <ArrowRight className="size-4" strokeWidth={2.25} aria-hidden="true" />
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             );

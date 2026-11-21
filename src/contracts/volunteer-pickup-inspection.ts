@@ -21,7 +21,9 @@ function allYes(body: {
 /**
  * The volunteer's three pickup answers. The client never sends the decision or the
  * volunteer id: the decision is derived from the answers and the actor comes from
- * the session. Any "no" needs a reason, because it becomes a rejection.
+ * the session. Any "no" needs a reason, because it becomes a rejection. A reason
+ * sent with three yes answers is also a rejection: the volunteer is unsure or the
+ * photo was flagged, and the System Structure says to reject whenever unsure.
  */
 export const pickupInspectionSchema = z
   .strictObject({
@@ -30,8 +32,8 @@ export const pickupInspectionSchema = z
     looksSmellsNormal: z.boolean(),
     reason: optionalReason,
   })
-  .refine((body) => !allYes(body) === (body.reason !== undefined), {
-    message: "A reason is required on a no answer and only sent on a no answer",
+  .refine((body) => allYes(body) || body.reason !== undefined, {
+    message: "A reason is required on a no answer",
     path: ["reason"],
   });
 export type PickupInspectionInput = z.infer<typeof pickupInspectionSchema>;
@@ -43,7 +45,10 @@ export type VolunteerPickupInspectionResponse = {
 };
 
 export function derivePickupDecision(body: PickupInspectionInput): PickupDecision {
-  return allYes(body) ? PickupDecision.ACCEPTED : PickupDecision.REJECTED;
+  // Accepted only with three yes answers and no reason; a reason means a rejection.
+  return allYes(body) && body.reason === undefined
+    ? PickupDecision.ACCEPTED
+    : PickupDecision.REJECTED;
 }
 
 /**
