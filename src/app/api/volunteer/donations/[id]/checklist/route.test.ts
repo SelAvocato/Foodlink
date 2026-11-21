@@ -141,6 +141,7 @@ describe("GET /api/volunteer/donations/[id]/checklist", () => {
 
   it("answers 200 with nulls when the donation has no checklist row", async () => {
     mocks.store.readChecklist.mockResolvedValue(null);
+    mocks.store.readAllergenNames.mockResolvedValue([]);
 
     const res = await get(DONATION_ID);
 
@@ -154,6 +155,25 @@ describe("GET /api/volunteer/donations/[id]/checklist", () => {
       allergensConfirmed: null,
       notCustomerPlateLeftovers: null,
       allergens: [],
+    });
+  });
+
+  it("keeps the declared allergens when the donation has no checklist row", async () => {
+    mocks.store.readChecklist.mockResolvedValue(null);
+    mocks.store.readAllergenNames.mockResolvedValue(["Milk", "Peanuts"]);
+
+    const res = await get(DONATION_ID);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      preparedAt: null,
+      consumeByAt: null,
+      storageCondition: null,
+      storageTemperatureC: null,
+      packagingIntact: null,
+      allergensConfirmed: null,
+      notCustomerPlateLeftovers: null,
+      allergens: ["Milk", "Peanuts"],
     });
   });
 

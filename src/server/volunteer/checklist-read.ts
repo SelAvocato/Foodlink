@@ -68,9 +68,9 @@ export async function readVolunteerChecklist(
   }
 
   const checklist = await deps.store.readChecklist(donationId);
-  if (!checklist) return { ok: true, checklist: EMPTY_CHECKLIST };
-
+  // Allergens are read on their own: a missing checklist row must not hide a declared allergen.
   const allergens = await deps.store.readAllergenNames(donationId);
+  if (!checklist) return { ok: true, checklist: { ...EMPTY_CHECKLIST, allergens } };
   return {
     ok: true,
     checklist: {

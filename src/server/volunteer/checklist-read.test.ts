@@ -84,7 +84,7 @@ describe("readVolunteerChecklist", () => {
   });
 
   it("answers 200 with every field null when there is no checklist row", async () => {
-    const store = fakeStore({ checklist: null });
+    const store = fakeStore({ checklist: null, allergens: [] });
 
     expect(await run(store)).toEqual({
       ok: true,
@@ -99,7 +99,25 @@ describe("readVolunteerChecklist", () => {
         allergens: [],
       },
     });
-    expect(store.readAllergenNames).not.toHaveBeenCalled();
+    expect(store.readAllergenNames).toHaveBeenCalled();
+  });
+
+  it("keeps the declared allergens when there is no checklist row", async () => {
+    const store = fakeStore({ checklist: null, allergens: ["Soy"] });
+
+    expect(await run(store)).toEqual({
+      ok: true,
+      checklist: {
+        preparedAt: null,
+        consumeByAt: null,
+        storageCondition: null,
+        storageTemperatureC: null,
+        packagingIntact: null,
+        allergensConfirmed: null,
+        notCustomerPlateLeftovers: null,
+        allergens: ["Soy"],
+      },
+    });
   });
 
   it("keeps nulls for a checklist that is only partly filled", async () => {
