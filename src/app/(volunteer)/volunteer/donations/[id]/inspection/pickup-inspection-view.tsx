@@ -11,10 +11,12 @@ import { PickupDecision, type ScreeningVerdict } from "@/contracts/enums";
 import {
   UPLOAD_TIMEOUT_MS,
   canAcceptPickup,
+  canConfirmRejection,
   canRejectPickup,
   canScreenStaged,
   checkPhotoFile,
   checkQuestions,
+  combineReason,
   donorChecklistLine,
   errorCode,
   errorMessage,
@@ -25,11 +27,15 @@ import {
   parsePhotoResponse,
   parseTaskDetail,
   screeningPanel,
+  type Answer,
   type Answers,
+  type CheckKey,
   type ChecklistState,
   type SubmitDecision,
   type TaskDetail,
 } from "./pickup-inspection-logic";
+import { PhoneCheckStep } from "./phone-check-step";
+import { PhoneRejectStep } from "./phone-reject-step";
 import { PhotoStepMobile } from "./photo-step-mobile";
 
 const BUTTON =
@@ -122,7 +128,9 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   const [trouble, setTrouble] = useState<Trouble | null>(null);
   const [staged, setStaged] = useState(false);
   // KNOWN LIMIT: a reload returns to step "photo" because no route returns the saved photo.
-  const [step, setStep] = useState<"photo" | "check">("photo");
+  const [step, setStep] = useState<"photo" | "check" | "reject">("photo");
+  const [rejectCategory, setRejectCategory] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [now] = useState(() => new Date());
 
@@ -132,6 +140,7 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   const previewRef = useRef<string | null>(null);
   const lastFile = useRef<File | null>(null);
   const lastDecision = useRef<SubmitDecision>("accept");
+  const lastReason = useRef<string | null>(null);
 
   // Mount and Try again only read here; the page keys this view by donation id,
   // so a new donation starts from the initial loading state.
@@ -187,6 +196,15 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   });
   const panel = screeningPanel(verdict);
   const canScreen = canScreenStaged({ staged, locked });
+  // The phone confirms the reason built on its own screen, so a layout change never
+  // submits a reason that differs from the one shown.
+  const phoneReason = combineReason(rejectCategory, rejectNote);
+  const phoneCanReject = canRejectPickup({
+    photoUploaded,
+    reason: phoneReason,
+    saving: busy,
+    locked: saved || outcome !== null,
+  });
 
   async function uploadPhoto(file: File) {
     // The old photo's verdict must not outlive a replaced preview: acceptance
@@ -213,8 +231,6 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
         }
         setVerdict(next);
         setPhotoUploaded(true);
-        // KNOWN LIMIT: on a phone, step 3 still shows the existing p28 layout until
-        // the p48 task; a retake there uploads immediately instead of staging.
         setStaged(false);
         setStep("check");
         return;
@@ -250,10 +266,19 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
     }
   }
 
-  async function submit(decision: SubmitDecision) {
+  async function submit(decision: SubmitDecision, reasonOverride?: string) {
+    // The phone passes its own reason; the desktop button passes nothing and keeps
+    // using the desktop editor's reason.
+    const rejectReason = reasonOverride ?? reason;
+    const canRejectNow = canRejectPickup({
+      photoUploaded,
+      reason: rejectReason,
+      saving: busy,
+      locked: saved || outcome !== null,
+    });
     // A retry must meet the same rules as a first click: a rejection whose reason
     // was cleared would otherwise be saved as an acceptance.
-    if (decision === "reject" ? !canReject : !canAccept) {
+    if (decision === "reject" ? !canRejectNow : !canAccept) {
       setTrouble({
         message: "Check the photo, the answers and the reason, then try again.",
         href: null,
@@ -263,13 +288,14 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
       return;
     }
     lastDecision.current = decision;
+    lastReason.current = reasonOverride ?? null;
     setBusy(true);
     setTrouble(null);
     try {
       const response = await fetch(base + "/inspection", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inspectionBody(answers, decision === "accept" ? "" : reason)),
+        body: JSON.stringify(inspectionBody(answers, decision === "accept" ? "" : rejectReason)),
         cache: "no-store",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -338,6 +364,53 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
     void uploadPhoto(file);
   }
 
+  function onAnswer(key: CheckKey, value: Answer) {
+    setAnswers((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onOpenReject() {
+    setStep("reject");
+  }
+
+  function onBackToInspection() {
+    setStep("check");
+  }
+
+  function onRetake() {
+    // The p48 step returns to the p47 preview, so the next photo is staged again
+    // instead of uploaded straight away.
+    if (locked) return;
+    if (previewRef.current !== null) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = null;
+    lastFile.current = null;
+    setPreviewUrl(null);
+    setStaged(false);
+    setVerdict(null);
+    setPhotoUploaded(false);
+    setTrouble(null);
+    // A new photo needs fresh answers: acceptance must not carry over the old ones.
+    setAnswers({});
+    setStep("photo");
+  }
+
+  // A failed rejection keeps a retry of the old reason; editing the reason drops that
+  // alert, so the volunteer confirms the reason now shown.
+  function dropFailedRejection() {
+    if (trouble !== null && trouble.retry === "submit" && lastDecision.current === "reject") {
+      setTrouble(null);
+    }
+  }
+
+  function onRejectCategory(category: string) {
+    dropFailedRejection();
+    setRejectCategory(category);
+  }
+
+  function onRejectNote(note: string) {
+    dropFailedRejection();
+    setRejectNote(note);
+  }
+
   function retryFailed() {
     const step = trouble === null ? null : trouble.retry;
     if (step === "load") {
@@ -353,7 +426,7 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
       return;
     }
     if (step === "submit") {
-      void submit(lastDecision.current);
+      void submit(lastDecision.current, lastReason.current ?? undefined);
       return;
     }
     if (step === "outcome") void retryOutcome();
@@ -375,19 +448,19 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   }
 
   const result = outcome === null ? null : outcomePanel(outcome);
-  const stagedPhoto = task !== null && outcome === null && step === "photo";
+  const phoneScreen = task !== null && outcome === null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       <h1
         className={
-          (stagedPhoto ? "hidden md:block " : "") +
+          (phoneScreen ? "hidden md:block " : "") +
           "text-[32px] font-semibold leading-tight text-[#17261F]"
         }
       >
         Inspect before accepting pickup
       </h1>
-      <p className={(stagedPhoto ? "hidden md:block " : "") + "mt-2 text-[15px] text-[#63746D]"}>
+      <p className={(phoneScreen ? "hidden md:block " : "") + "mt-2 text-[15px] text-[#63746D]"}>
         {subtitle}
       </p>
 
@@ -426,26 +499,53 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
         </section>
       ) : null}
 
-      {result === null && task !== null && stagedPhoto ? (
+      {result === null && task !== null && phoneScreen ? (
         // The phone root cancels the view padding, so pad the wrapper when the
         // trouble strip above must keep its own space.
         <div className={trouble === null ? "md:hidden" : "md:hidden pt-10"}>
-          <PhotoStepMobile
-            code={taskCode(task.shortCode)}
-            portionsLabel={portionsText(task.portions)}
-            foodName={task.foodName}
-            previewUrl={previewUrl}
-            canScreen={canScreen}
-            locked={locked}
-            onFileChange={onPhoneFileChange}
-            onScreen={onScreen}
-          />
+          {step === "photo" ? (
+            <PhotoStepMobile
+              code={taskCode(task.shortCode)}
+              portionsLabel={portionsText(task.portions)}
+              foodName={task.foodName}
+              previewUrl={previewUrl}
+              canScreen={canScreen}
+              locked={locked}
+              onFileChange={onPhoneFileChange}
+              onScreen={onScreen}
+            />
+          ) : null}
+          {step === "check" ? (
+            <PhoneCheckStep
+              strip={panel}
+              questions={checks}
+              answers={answers}
+              canAccept={canAccept}
+              locked={locked}
+              onAnswer={onAnswer}
+              onRetake={onRetake}
+              onOpenReject={onOpenReject}
+              onAccept={() => void submit("accept")}
+            />
+          ) : null}
+          {step === "reject" ? (
+            <PhoneRejectStep
+              category={rejectCategory}
+              note={rejectNote}
+              canConfirm={canConfirmRejection({ category: rejectCategory, canReject: phoneCanReject })}
+              locked={locked}
+              onBack={onBackToInspection}
+              onCategory={onRejectCategory}
+              onNote={onRejectNote}
+              onConfirm={() => void submit("reject", phoneReason)}
+            />
+          ) : null}
         </div>
       ) : null}
 
       {result === null && task !== null ? (
         <div
-          className={(stagedPhoto ? "hidden md:grid" : "grid") + " mt-10 gap-6 lg:grid-cols-2"}
+          className={(phoneScreen ? "hidden md:grid" : "grid") + " mt-10 gap-6 lg:grid-cols-2"}
         >
           <section className="flex flex-col rounded-xl bg-white p-6">
             <h2 className="text-[22px] font-semibold text-[#17261F]">Your pickup photo</h2>
@@ -565,7 +665,12 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
         </div>
       ) : null}
 
-      <p className={(stagedPhoto ? "hidden md:block " : "") + "mt-9 text-[15px] text-[#63746D]"}>
+      <p
+        className={
+          (phoneScreen && step !== "check" ? "hidden md:block " : "") +
+          "mt-9 text-[15px] text-[#63746D]"
+        }
+      >
         {donorChecklistLine(checklist, now)}
       </p>
     </div>

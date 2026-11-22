@@ -248,6 +248,36 @@ export function canRejectPickup(input: RejectionInput): boolean {
   return !input.saving && !input.locked;
 }
 
+/**
+ * KNOWN LIMIT: the reason categories are a team choice; the System Structure
+ * only requires a reason.
+ */
+export const REJECT_REASONS: readonly string[] = [
+  "Packaging is damaged or open",
+  "Unusual smell or appearance",
+  "Does not match the description or portions",
+  "Other",
+];
+
+/** The free-text note under a category; the server keeps the combined reason under 500. */
+export const MAX_REJECT_NOTE = 400;
+
+/** The one reason string the server stores: a category, an optional note, or both. */
+export function combineReason(category: string, note: string): string {
+  const trimmedCategory = category.trim();
+  const trimmedNote = note.trim();
+  if (trimmedCategory === "") return trimmedNote;
+  if (trimmedNote === "") return trimmedCategory;
+  return trimmedCategory + ": " + trimmedNote;
+}
+
+export type RejectionConfirmInput = { category: string; canReject: boolean };
+
+/** A rejection needs a reason and the same rules as the desktop reject button. */
+export function canConfirmRejection(input: RejectionConfirmInput): boolean {
+  return input.category !== "" && input.canReject;
+}
+
 export type StagedScreenInput = { staged: boolean; locked: boolean };
 
 /** The phone's Screen button only acts on a preview that has not been uploaded yet. */
