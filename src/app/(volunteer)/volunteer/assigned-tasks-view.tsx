@@ -31,6 +31,7 @@ import {
   type LoadFailure,
   type TaskItem,
 } from "./assigned-tasks-logic";
+import { AssignedTasksMobile } from "./assigned-tasks-mobile";
 
 type TasksState =
   | { status: "loading" }
@@ -117,18 +118,19 @@ export function AssignedTasksView() {
     setRetry((value) => value + 1);
   }
 
-  let body: ReactNode;
+  // Loading and the two error banners belong to both breakpoints; the table is desktop only.
+  let stateNotice: ReactNode = null;
   if (tasks.status === "loading") {
-    body = <DataTableSkeleton rows={5} columns={5} label="Loading tasks" />;
+    stateNotice = <DataTableSkeleton rows={5} columns={5} label="Loading tasks" />;
   } else if (tasks.status === "error" && tasks.failure === "session") {
-    body = (
+    stateNotice = (
       <FeedbackBanner tone="error" title="Could not load your tasks">
         Your session may have ended, or this account cannot view volunteer tasks. Sign out and
         sign in again with your volunteer account.
       </FeedbackBanner>
     );
   } else if (tasks.status === "error") {
-    body = (
+    stateNotice = (
       <FeedbackBanner
         tone="error"
         title="Could not load your tasks"
@@ -137,6 +139,11 @@ export function AssignedTasksView() {
         Check your connection and try again.
       </FeedbackBanner>
     );
+  }
+
+  let body: ReactNode;
+  if (stateNotice !== null) {
+    body = stateNotice;
   } else if (visible.length === 0) {
     const empty = emptyState(items.length > 0);
     body = <EmptyState title={empty.title} description={empty.description} />;
@@ -191,80 +198,94 @@ export function AssignedTasksView() {
     );
   }
 
+  let mobileBody: ReactNode;
+  if (stateNotice !== null) {
+    mobileBody = stateNotice;
+  } else if (items.length === 0) {
+    const empty = emptyState(false);
+    mobileBody = <EmptyState title={empty.title} description={empty.description} />;
+  } else {
+    mobileBody = <AssignedTasksMobile tasks={items} now={now} />;
+  }
+
   return (
     <div className="-m-6 min-h-[calc(100vh-3.5rem)] bg-[#F5F7F5] p-6">
-      <div className="mx-auto max-w-[1147px] space-y-8">
-        <PageHeader
-          title="Your assigned tasks"
-          description="Only donations assigned to you appear here."
-        />
+      <div className="mx-auto max-w-[1147px]">
+        <div className="hidden space-y-8 md:block">
+          <PageHeader
+            title="Your assigned tasks"
+            description="Only donations assigned to you appear here."
+          />
 
-        {banner !== null ? (
-          <section className="rounded-xl bg-[#176448] px-7 py-8 text-white">
-            <p className="text-3xl font-semibold">{banner.headline}</p>
-            <p className="mt-4 text-base">
-              {banner.awaiting} <span className="mx-3">·</span> {banner.reports}
+          {banner !== null ? (
+            <section className="rounded-xl bg-[#176448] px-7 py-8 text-white">
+              <p className="text-3xl font-semibold">{banner.headline}</p>
+              <p className="mt-4 text-base">
+                {banner.awaiting} <span className="mx-3">·</span> {banner.reports}
+              </p>
+            </section>
+          ) : null}
+
+          <div>
+            <div className="flex gap-6">
+              <button
+                type="button"
+                aria-current="page"
+                className="min-h-11 text-base font-semibold text-[#176448]"
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                disabled
+                title="History needs finished donations, which the list route does not return yet"
+                className="min-h-11 cursor-not-allowed text-base font-semibold text-[#176448] opacity-40"
+              >
+                History
+              </button>
+            </div>
+
+            <div className="mt-2 space-y-6">
+              {/* Known limit, to fix after the demo (also in PROJECT_NOTES): search and the
+                  Status and Date filters will only filter the rows already loaded in the
+                  browser. The list route returns at most 50 per page and has no search or
+                  date parameter. This is intentional for now. */}
+              <FilterBar>
+                <SearchInput
+                  label="Search your tasks"
+                  placeholder="Search your tasks by food name or ID"
+                  value={search}
+                  onChange={setSearch}
+                />
+                <FilterSelect label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+                <FilterSelect label="Date" value={date} onChange={setDate} options={DATE_OPTIONS} />
+              </FilterBar>
+
+              <div className="rounded-xl bg-white px-6 pb-10 pt-4">{body}</div>
+            </div>
+          </div>
+
+          {contact !== null ? (
+            <p className="text-sm text-[#63746D]">{contact}</p>
+          ) : null}
+
+          <section className="rounded-xl bg-[#EAF4EE] px-7 py-6">
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-lg font-medium text-[#176448]">
+              <span>On your phone:</span>
+              {PHONE_STEPS.map((step, index) => (
+                <Fragment key={step}>
+                  {index > 0 ? <ArrowRight className="size-[18px]" strokeWidth={2.25} aria-hidden="true" /> : null}
+                  <span>{step}</span>
+                </Fragment>
+              ))}
+            </p>
+            <p className="mt-2 text-sm text-[#63746D]">
+              Food can only leave the donor after your own inspection passes.
             </p>
           </section>
-        ) : null}
-
-        <div>
-          <div className="flex gap-6">
-            <button
-              type="button"
-              aria-current="page"
-              className="min-h-11 text-base font-semibold text-[#176448]"
-            >
-              Active
-            </button>
-            <button
-              type="button"
-              disabled
-              title="History needs finished donations, which the list route does not return yet"
-              className="min-h-11 cursor-not-allowed text-base font-semibold text-[#176448] opacity-40"
-            >
-              History
-            </button>
-          </div>
-
-          <div className="mt-2 space-y-6">
-            {/* Known limit, to fix after the demo (also in PROJECT_NOTES): search and the
-                Status and Date filters will only filter the rows already loaded in the
-                browser. The list route returns at most 50 per page and has no search or
-                date parameter. This is intentional for now. */}
-            <FilterBar>
-              <SearchInput
-                label="Search your tasks"
-                placeholder="Search your tasks by food name or ID"
-                value={search}
-                onChange={setSearch}
-              />
-              <FilterSelect label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-              <FilterSelect label="Date" value={date} onChange={setDate} options={DATE_OPTIONS} />
-            </FilterBar>
-
-            <div className="rounded-xl bg-white px-6 pb-10 pt-4">{body}</div>
-          </div>
         </div>
 
-        {contact !== null ? (
-          <p className="text-sm text-[#63746D]">{contact}</p>
-        ) : null}
-
-        <section className="rounded-xl bg-[#EAF4EE] px-7 py-6">
-          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-lg font-medium text-[#176448]">
-            <span>On your phone:</span>
-            {PHONE_STEPS.map((step, index) => (
-              <Fragment key={step}>
-                {index > 0 ? <ArrowRight className="size-[18px]" strokeWidth={2.25} aria-hidden="true" /> : null}
-                <span>{step}</span>
-              </Fragment>
-            ))}
-          </p>
-          <p className="mt-2 text-sm text-[#63746D]">
-            Food can only leave the donor after your own inspection passes.
-          </p>
-        </section>
+        <div className="md:hidden">{mobileBody}</div>
       </div>
     </div>
   );
