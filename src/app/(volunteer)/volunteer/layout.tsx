@@ -1,13 +1,5 @@
-import { SignOutButton } from "@/features/auth/sign-out-button";
+import { VolunteerShell } from "./volunteer-shell";
 
 export default function VolunteerLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen">
-      <header className="flex min-h-14 items-center justify-between gap-4 border-b px-6 font-semibold">
-        <span>FoodLink — Volunteer</span>
-        <SignOutButton className="min-h-11" callbackUrl="/login" />
-      </header>
-      <div className="p-6">{children}</div>
-    </div>
-  );
+  return <VolunteerShell>{children}</VolunteerShell>;
 }
