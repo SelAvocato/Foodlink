@@ -42,8 +42,8 @@ BEGIN
   SELECT count(*) INTO actual
   FROM pg_indexes
   WHERE schemaname = 'public' AND tablename <> '_prisma_migrations';
-  IF actual <> 118 THEN
-    RAISE EXCEPTION 'indexes: expected 118, got %', actual;
+  IF actual <> 119 THEN
+    RAISE EXCEPTION 'indexes: expected 119, got %', actual;
   END IF;
 
   SELECT count(*) INTO actual
