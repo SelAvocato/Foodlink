@@ -105,6 +105,7 @@ model distribution_entries {
   beneficiary_groups        beneficiary_groups          @relation(fields: [group_id], references: [id], onUpdate: NoAction)
   users                     users                       @relation(fields: [recorded_by_user_id], references: [id], onUpdate: NoAction)
   distribution_entry_photos distribution_entry_photos[]
+  unusable_portions         unusable_portions[]
 
   @@index([donation_id, distributed_on], map: "distribution_entries_donation_idx")
   @@index([group_id], map: "distribution_entries_group_idx")
@@ -518,17 +519,20 @@ model one_time_codes {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model unusable_portions {
-  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  donation_id         String          @db.Uuid
-  portions            Int
-  reason              unusable_reason
-  note                String?
-  recorded_by_user_id String          @db.Uuid
-  created_at          DateTime        @default(now()) @db.Timestamptz(6)
-  donations           donations       @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
-  users               users           @relation(fields: [recorded_by_user_id], references: [id], onUpdate: NoAction)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_id          String               @db.Uuid
+  entry_id             String?              @db.Uuid
+  portions             Int
+  reason               unusable_reason
+  note                 String?
+  recorded_by_user_id  String               @db.Uuid
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  donations            donations            @relation(fields: [donation_id], references: [id], onUpdate: NoAction)
+  distribution_entries distribution_entries? @relation(fields: [entry_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                users                @relation(fields: [recorded_by_user_id], references: [id], onUpdate: NoAction)
 
   @@index([donation_id], map: "unusable_portions_donation_idx")
+  @@index([entry_id], map: "unusable_portions_entry_idx")
   @@index([recorded_by_user_id], map: "unusable_portions_recorded_by_idx")
 }
 

@@ -513,6 +513,7 @@ CREATE TABLE distribution_entry_photos (
 CREATE TABLE unusable_portions (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   donation_id         uuid NOT NULL REFERENCES donations(id) ON DELETE RESTRICT,
+  entry_id            uuid REFERENCES distribution_entries(id) ON DELETE CASCADE,
   portions            integer NOT NULL CHECK (portions > 0),
   reason              unusable_reason NOT NULL,
   note                text,
@@ -727,6 +728,7 @@ CREATE INDEX distribution_entries_group_idx ON distribution_entries (group_id);
 CREATE INDEX distribution_entry_photos_entry_idx ON distribution_entry_photos (entry_id);
 CREATE INDEX distribution_entry_photos_uploaded_by_idx ON distribution_entry_photos (uploaded_by_user_id);
 CREATE INDEX unusable_portions_donation_idx ON unusable_portions (donation_id);
+CREATE INDEX unusable_portions_entry_idx ON unusable_portions (entry_id);
 CREATE INDEX unusable_portions_recorded_by_idx ON unusable_portions (recorded_by_user_id);
 
 -- tracking / incidents / messages / notifications

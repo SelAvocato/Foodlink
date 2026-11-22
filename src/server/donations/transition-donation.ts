@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { donation_status } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import { writeAuditLog } from "@/server/audit";
@@ -117,54 +118,58 @@ export async function transitionDonation(
   });
 }
 
+export function createPrismaTransitionTx(tx: Prisma.TransactionClient): TransitionTx {
+  return {
+    async getDonation(id) {
+      const row = await tx.donations.findUnique({ where: { id, deleted_at: null }, select: { status: true, donor_id: true, pickup_end: true, donation_assignments: { where: { ended_at: null }, select: { volunteer_id: true } } } });
+      return row ? { status: row.status, donorId: row.donor_id, pickupEnd: row.pickup_end, currentVolunteerId: row.donation_assignments?.volunteer_id ?? null } : null;
+    },
+    async updateDonation(input) {
+      const data = {
+        status: donation_status[input.to],
+        accepted_by_id: input.to === "ACCEPTED" ? input.actorId : undefined,
+        accepted_at: input.to === "ACCEPTED" ? input.now : undefined,
+        posted_at: input.to === "POSTED" ? input.now : undefined,
+        qr_token: input.to === "POSTED" ? input.qrToken : undefined,
+        closed_at: input.closedAt,
+      };
+      const where = { id: input.id, status: donation_status[input.from], deleted_at: null, ...(input.to === "ACCEPTED" ? { pickup_end: { gt: input.now } } : {}) };
+      return (await tx.donations.updateMany({ where, data })).count === 1;
+    },
+    async getActiveVolunteer(id) {
+      const row = await tx.users.findFirst({ where: { id, role: "VOLUNTEER", status: "ACTIVE", deleted_at: null }, select: { id: true } });
+      return row ? { id: row.id, role: "VOLUNTEER", status: "ACTIVE" } : null;
+    },
+    async hasDistribution(donationId) {
+      return (await tx.distribution_entries.count({ where: { donation_id: donationId } })) > 0;
+    },
+    async getCompletionTotals(donationId) {
+      const donation = await tx.donations.findUnique({ where: { id: donationId }, select: { portions: true } });
+      const distributed = await tx.distribution_entries.aggregate({
+        where: { donation_id: donationId },
+        _sum: { portions_distributed: true },
+      });
+      const unusable = await tx.unusable_portions.aggregate({
+        where: { donation_id: donationId },
+        _sum: { portions: true },
+      });
+      return {
+        portions: donation?.portions ?? 0,
+        distributed: distributed._sum.portions_distributed ?? 0,
+        unusable: unusable._sum.portions ?? 0,
+      };
+    },
+    async insertAssignment(input) { await tx.donation_assignments.create({ data: { donation_id: input.donationId, volunteer_id: input.volunteerId, assigned_by_id: input.assignedById, assigned_at: input.assignedAt } }); },
+    async insertExit(input) { await tx.donation_exits.create({ data: { donation_id: input.donationId, exit_status: donation_status[input.status], actor_user_id: input.actorId, actor_role: input.actorRole, reason: input.reason, screening_id: input.screeningId } }); },
+    async insertTracking(input) { await tx.donation_tracking_events.create({ data: { donation_id: input.donationId, from_status: donation_status[input.from], to_status: donation_status[input.to], actor_user_id: input.actorId, event_note: input.note, metadata: input.metadata } }); },
+    async insertNotifications(rows) { await tx.notifications.createMany({ data: rows.map((row) => ({ user_id: row.userId, notification_type: row.type, title: row.title, body: row.body, related_donation_id: row.donationId })) }); },
+    async insertAudit(input) { await writeAuditLog({ actorUserId: input.actorId, action: "DONATION_TRANSITION", targetType: "DONATION", targetId: input.targetId, details: input.details }, tx); },
+  };
+}
+
 export const prismaTransitionStore: TransitionStore = {
-  transaction: (work) => prisma.$transaction(async (tx) => {
-    const adapter: TransitionTx = {
-      async getDonation(id) {
-        const row = await tx.donations.findUnique({ where: { id, deleted_at: null }, select: { status: true, donor_id: true, pickup_end: true, donation_assignments: { where: { ended_at: null }, select: { volunteer_id: true } } } });
-        return row ? { status: row.status, donorId: row.donor_id, pickupEnd: row.pickup_end, currentVolunteerId: row.donation_assignments?.volunteer_id ?? null } : null;
-      },
-      async updateDonation(input) {
-        const data = {
-          status: donation_status[input.to],
-          accepted_by_id: input.to === "ACCEPTED" ? input.actorId : undefined,
-          accepted_at: input.to === "ACCEPTED" ? input.now : undefined,
-          posted_at: input.to === "POSTED" ? input.now : undefined,
-          qr_token: input.to === "POSTED" ? input.qrToken : undefined,
-          closed_at: input.closedAt,
-        };
-        const where = { id: input.id, status: donation_status[input.from], deleted_at: null, ...(input.to === "ACCEPTED" ? { pickup_end: { gt: input.now } } : {}) };
-        return (await tx.donations.updateMany({ where, data })).count === 1;
-      },
-      async getActiveVolunteer(id) {
-        const row = await tx.users.findFirst({ where: { id, role: "VOLUNTEER", status: "ACTIVE", deleted_at: null }, select: { id: true } });
-        return row ? { id: row.id, role: "VOLUNTEER", status: "ACTIVE" } : null;
-      },
-      async hasDistribution(donationId) {
-        return (await tx.distribution_entries.count({ where: { donation_id: donationId } })) > 0;
-      },
-      async getCompletionTotals(donationId) {
-        const donation = await tx.donations.findUnique({ where: { id: donationId }, select: { portions: true } });
-        const distributed = await tx.distribution_entries.aggregate({
-          where: { donation_id: donationId },
-          _sum: { portions_distributed: true },
-        });
-        const unusable = await tx.unusable_portions.aggregate({
-          where: { donation_id: donationId },
-          _sum: { portions: true },
-        });
-        return {
-          portions: donation?.portions ?? 0,
-          distributed: distributed._sum.portions_distributed ?? 0,
-          unusable: unusable._sum.portions ?? 0,
-        };
-      },
-      async insertAssignment(input) { await tx.donation_assignments.create({ data: { donation_id: input.donationId, volunteer_id: input.volunteerId, assigned_by_id: input.assignedById, assigned_at: input.assignedAt } }); },
-      async insertExit(input) { await tx.donation_exits.create({ data: { donation_id: input.donationId, exit_status: donation_status[input.status], actor_user_id: input.actorId, actor_role: input.actorRole, reason: input.reason, screening_id: input.screeningId } }); },
-      async insertTracking(input) { await tx.donation_tracking_events.create({ data: { donation_id: input.donationId, from_status: donation_status[input.from], to_status: donation_status[input.to], actor_user_id: input.actorId, event_note: input.note, metadata: input.metadata } }); },
-      async insertNotifications(rows) { await tx.notifications.createMany({ data: rows.map((row) => ({ user_id: row.userId, notification_type: row.type, title: row.title, body: row.body, related_donation_id: row.donationId })) }); },
-      async insertAudit(input) { await writeAuditLog({ actorUserId: input.actorId, action: "DONATION_TRANSITION", targetType: "DONATION", targetId: input.targetId, details: input.details }, tx); },
-    };
-    return work(adapter);
-  }, { maxWait: 10000, timeout: 30000 }),
+  transaction: (work) => prisma.$transaction(
+    async (tx) => work(createPrismaTransitionTx(tx)),
+    { maxWait: 10000, timeout: 30000 },
+  ),
 };
