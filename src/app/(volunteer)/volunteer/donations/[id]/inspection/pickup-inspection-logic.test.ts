@@ -5,11 +5,14 @@ import {
   CHECKLIST_ERROR,
   CHECKLIST_LOADING,
   MAX_PHOTO_BYTES,
+  REJECT_REASONS,
   canAcceptPickup,
+  canConfirmRejection,
   canRejectPickup,
   canScreenStaged,
   checkPhotoFile,
   checkQuestions,
+  combineReason,
   donorChecklistLine,
   errorCode,
   errorMessage,
@@ -199,6 +202,30 @@ describe("canRejectPickup", () => {
     expect(canRejectPickup({ photoUploaded: true, reason: "Too warm", saving: false, locked: true })).toBe(
       false,
     );
+  });
+});
+
+describe("reject reasons", () => {
+  it("combines a category and a note, trimming both", () => {
+    expect(combineReason("", "")).toBe("");
+    expect(combineReason("   ", "  ")).toBe("");
+    expect(combineReason("Other", "")).toBe("Other");
+    expect(combineReason("", "Too warm")).toBe("Too warm");
+    expect(combineReason("Other", "Still warm")).toBe("Other: Still warm");
+    expect(combineReason("  Other  ", "  Still warm  ")).toBe("Other: Still warm");
+  });
+
+  it("confirms a rejection only with a category and the desktop rules", () => {
+    expect(canConfirmRejection({ category: "Other", canReject: true })).toBe(true);
+    expect(canConfirmRejection({ category: "", canReject: true })).toBe(false);
+    expect(canConfirmRejection({ category: "Other", canReject: false })).toBe(false);
+    expect(canConfirmRejection({ category: "", canReject: false })).toBe(false);
+  });
+
+  it("lists the four unique categories, each short enough for one line", () => {
+    expect(REJECT_REASONS).toHaveLength(4);
+    expect(new Set(REJECT_REASONS).size).toBe(REJECT_REASONS.length);
+    for (const reason of REJECT_REASONS) expect(reason.length).toBeLessThanOrEqual(90);
   });
 });
 
