@@ -85,7 +85,7 @@ export const CHECKLIST_LOADING = "Donor checklist: loading...";
 export const CHECKLIST_ERROR = "Donor checklist could not be loaded.";
 
 /** Same labels the donor's own detail screen uses, so one food reads the same everywhere. */
-const STORAGE_LABELS: Record<StorageCondition, string> = {
+export const STORAGE_LABELS: Record<StorageCondition, string> = {
   [StorageCondition.ROOM_TEMPERATURE]: "Room temperature",
   [StorageCondition.HOT_HELD]: "Hot-held",
   [StorageCondition.REFRIGERATED]: "Refrigerated",

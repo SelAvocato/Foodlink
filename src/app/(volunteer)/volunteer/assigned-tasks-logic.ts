@@ -8,9 +8,9 @@ import { formatWindow } from "@/app/(donor)/donor/donate/review-logic";
 export const REQUEST_TIMEOUT_MS = 10_000;
 export const PAGE_SIZE = 50;
 
-const NOT_SET = "Not set";
+export const NOT_SET = "Not set";
 
-const STATUS_LABELS: Record<VolunteerDonationStatus, string> = {
+export const STATUS_LABELS: Record<VolunteerDonationStatus, string> = {
   ASSIGNED: "Assigned",
   PICKED_UP: "Picked up",
   DELIVERED: "Delivered",
@@ -78,8 +78,8 @@ export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
     window: window ?? NOT_SET,
     status: STATUS_LABELS[item.status],
     action: item.status === "DELIVERED" ? "Record distribution" : "View task",
-    // Only an ASSIGNED donation has a screen to open yet, and the link carries no id or token.
-    viewTaskHref: item.status === "ASSIGNED" ? "/volunteer/scan" : null,
+    // Only an ASSIGNED donation has a task detail screen; the link carries the id, no token.
+    viewTaskHref: item.status === "ASSIGNED" ? `/volunteer/donations/${item.donationId}` : null,
   };
 }
 
