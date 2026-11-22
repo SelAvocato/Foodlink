@@ -358,7 +358,7 @@ export function RegistrationsView() {
                   <div className="mt-10 rounded-xl bg-(--fl-canvas) p-5">
                     <h3 className="text-lg font-semibold">{proofCardTitle(proof.type)}</h3>
                     <p className="mt-3 text-sm text-(--fl-muted)">
-                      Private document · Available only to authorized staff
+                      Private document · Available only to authorized admins
                     </p>
                     <Button
                       type="button"

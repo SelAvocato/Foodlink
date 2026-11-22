@@ -36,7 +36,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="border-transparent bg-transparent px-2 focus-visible:ring-ring"
+        className="border-transparent bg-transparent px-2 focus-visible:ring-2"
       />
     </div>
   );
@@ -57,18 +57,33 @@ export function FilterSelect({
   return (
     <label htmlFor={id} className="flex items-center gap-2 text-sm text-muted-foreground">
       <span>{label}:</span>
-      <Select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-11 min-w-32 border-transparent bg-transparent px-2 pr-9 focus-visible:ring-ring"
-      >
+      {/* The slot is as wide as the longest option (hidden copies share one grid cell), so the
+          label never moves; the select is as wide as the chosen value, so the chevron follows it. */}
+      <div className="grid">
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <span
+            key={o.value}
+            aria-hidden="true"
+            className="invisible col-start-1 row-start-1 whitespace-nowrap px-2 pr-12 text-base"
+          >
             {o.label}
-          </option>
+          </span>
         ))}
-      </Select>
+        <div className="col-start-1 row-start-1 w-fit justify-self-start">
+          <Select
+            id={id}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-11 field-sizing-content border-transparent bg-transparent px-2 pr-12 focus-visible:ring-2"
+          >
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
     </label>
   );
 }

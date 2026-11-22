@@ -150,7 +150,8 @@ export async function savePickupInspection(
       packagingSealedClean: input.packagingSealedClean,
       looksSmellsNormal: input.looksSmellsNormal,
       decision,
-      // The contract only allows a reason on a no answer.
+      // The contract requires a reason on a no answer and accepts one with three yes
+      // answers too (a rejection when unsure); the schema needs it on every rejection.
       reason: input.reason ?? null,
       inspectedAt,
     });

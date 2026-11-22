@@ -22,7 +22,7 @@ export default function DonorRegistrationPage() {
           <aside className="rounded-xl bg-(--fl-success) p-6">
             <h2 className="text-xl font-semibold text-(--fl-primary)">What happens next?</h2>
             <ol className="mt-6 list-decimal space-y-4 pl-5 text-[15px] text-(--fl-muted)">
-              <li>Staff review your proof.</li>
+              <li>An admin reviews your proof.</li>
               <li>You receive an email decision.</li>
               <li>Once approved, log in to your workspace.</li>
             </ol>

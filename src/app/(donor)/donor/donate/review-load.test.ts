@@ -73,6 +73,7 @@ describe("decideReview", () => {
     expect(decideReview(input())).toEqual({
       kind: "ready",
       foodName: "Fresh bread rolls",
+      portions: 24,
       summary: "24 portions · Bakery · Establishment donor",
       safetyLines: [
         "Visual screening: Passed",

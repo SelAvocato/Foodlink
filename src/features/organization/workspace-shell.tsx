@@ -48,7 +48,7 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
  */
 export function OrganizationShell({
   breadcrumbLabel,
-  user = { name: "Organization staff", role: "Administrator" },
+  user = { name: "Organization admin", role: "Administrator" },
   unreadCount = 0,
   showSampleBadge = false,
   children,

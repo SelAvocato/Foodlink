@@ -40,8 +40,11 @@ describe("pickupInspectionSchema", () => {
     expect(parse({ ...ALL_YES, looksSmellsNormal: false, reason: "<>" }).success).toBe(false);
   });
 
-  it("refuses a real reason when every answer is yes", () => {
-    expect(parse({ ...ALL_YES, reason: "Looks great" }).success).toBe(false);
+  it("accepts a real reason when every answer is yes, as a rejection when unsure", () => {
+    const result = parse({ ...ALL_YES, reason: "Not sure about it" });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.reason).toBe("Not sure about it");
   });
 
   it("treats an empty or markup-only reason as no reason, like the donor cancel reason", () => {
@@ -86,6 +89,12 @@ describe("derivePickupDecision", () => {
       PickupDecision.REJECTED,
     );
     expect(derivePickupDecision({ ...ALL_YES, looksSmellsNormal: false, reason: "Sour" })).toBe(
+      PickupDecision.REJECTED,
+    );
+  });
+
+  it("rejects when every answer is yes but a reason is sent", () => {
+    expect(derivePickupDecision({ ...ALL_YES, reason: "Photo was flagged" })).toBe(
       PickupDecision.REJECTED,
     );
   });

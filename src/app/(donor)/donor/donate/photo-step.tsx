@@ -20,15 +20,6 @@ import {
 } from "./photo-step-logic";
 import { parsePhotoUrl } from "./resume-logic";
 
-// Static list for the preview route only: the wizard loads the categories allowed for the donor type.
-export const PREVIEW_CATEGORIES = [
-  { code: "COOKED_MEALS", name: "Cooked Meals", requiresPreparedTime: true, requiresStorageInfo: true },
-  { code: "BAKERY", name: "Bakery", requiresPreparedTime: true, requiresStorageInfo: true },
-  { code: "FRESH_PRODUCE", name: "Whole Fresh Produce", requiresPreparedTime: false, requiresStorageInfo: false },
-  { code: "PACKAGED_FOOD", name: "Sealed Packaged Food", requiresPreparedTime: false, requiresStorageInfo: false },
-  { code: "BEVERAGES", name: "Sealed Beverages", requiresPreparedTime: false, requiresStorageInfo: false },
-];
-
 export type FoodCategoryOption = {
   code: string;
   name: string;
@@ -57,7 +48,7 @@ type StepBanner = {
 const WAITING_BANNER: StepBanner = {
   tone: "warning",
   title: "Waiting for review",
-  message: "Staff will review your photo.",
+  message: "An admin will review your photo.",
   restart: false,
 };
 
@@ -398,7 +389,7 @@ export function PhotoStep({
           <p className="mt-8 text-base text-(--fl-muted)">What happens next?</p>
           <ul className="mt-5 flex flex-col gap-4 text-base text-(--fl-muted)">
             <li>Pass → Continue to checklist</li>
-            <li>Review → Staff review the photo; you’ll be notified.</li>
+            <li>Review → An admin reviews the photo; you’ll be notified.</li>
             <li>Flag → Donation is rejected with a reason.</li>
             <li>You can retake the photo before screening.</li>
           </ul>
