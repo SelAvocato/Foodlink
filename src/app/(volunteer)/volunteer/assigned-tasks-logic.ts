@@ -8,9 +8,9 @@ import { formatWindow } from "@/app/(donor)/donor/donate/review-logic";
 export const REQUEST_TIMEOUT_MS = 10_000;
 export const PAGE_SIZE = 50;
 
-const NOT_SET = "Not set";
+export const NOT_SET = "Not set";
 
-const STATUS_LABELS: Record<VolunteerDonationStatus, string> = {
+export const STATUS_LABELS: Record<VolunteerDonationStatus, string> = {
   ASSIGNED: "Assigned",
   PICKED_UP: "Picked up",
   DELIVERED: "Delivered",
