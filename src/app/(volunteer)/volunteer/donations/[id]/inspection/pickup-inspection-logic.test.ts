@@ -7,6 +7,7 @@ import {
   MAX_PHOTO_BYTES,
   canAcceptPickup,
   canRejectPickup,
+  canScreenStaged,
   checkPhotoFile,
   checkQuestions,
   donorChecklistLine,
@@ -198,6 +199,15 @@ describe("canRejectPickup", () => {
     expect(canRejectPickup({ photoUploaded: true, reason: "Too warm", saving: false, locked: true })).toBe(
       false,
     );
+  });
+});
+
+describe("canScreenStaged", () => {
+  it("is true only for a staged preview that is not locked", () => {
+    expect(canScreenStaged({ staged: true, locked: false })).toBe(true);
+    expect(canScreenStaged({ staged: true, locked: true })).toBe(false);
+    expect(canScreenStaged({ staged: false, locked: false })).toBe(false);
+    expect(canScreenStaged({ staged: false, locked: true })).toBe(false);
   });
 });
 
