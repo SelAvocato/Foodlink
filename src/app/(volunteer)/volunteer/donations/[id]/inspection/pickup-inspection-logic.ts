@@ -248,6 +248,13 @@ export function canRejectPickup(input: RejectionInput): boolean {
   return !input.saving && !input.locked;
 }
 
+export type StagedScreenInput = { staged: boolean; locked: boolean };
+
+/** The phone's Screen button only acts on a preview that has not been uploaded yet. */
+export function canScreenStaged(input: StagedScreenInput): boolean {
+  return input.staged && !input.locked;
+}
+
 export type InspectionBody = {
   matchesDescription: boolean;
   packagingSealedClean: boolean;

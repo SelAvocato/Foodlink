@@ -6,11 +6,13 @@ import {
   REQUEST_TIMEOUT_MS,
   taskCode,
 } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
+import { portionsText } from "@/app/(volunteer)/volunteer/assigned-tasks-mobile-logic";
 import { PickupDecision, type ScreeningVerdict } from "@/contracts/enums";
 import {
   UPLOAD_TIMEOUT_MS,
   canAcceptPickup,
   canRejectPickup,
+  canScreenStaged,
   checkPhotoFile,
   checkQuestions,
   donorChecklistLine,
@@ -28,6 +30,7 @@ import {
   type SubmitDecision,
   type TaskDetail,
 } from "./pickup-inspection-logic";
+import { PhotoStepMobile } from "./photo-step-mobile";
 
 const BUTTON =
   "inline-flex h-11 min-w-[210px] items-center justify-center rounded-sm px-6 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -117,6 +120,9 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   const [saved, setSaved] = useState(false);
   const [outcome, setOutcome] = useState<PickupDecision | null>(null);
   const [trouble, setTrouble] = useState<Trouble | null>(null);
+  const [staged, setStaged] = useState(false);
+  // KNOWN LIMIT: a reload returns to step "photo" because no route returns the saved photo.
+  const [step, setStep] = useState<"photo" | "check">("photo");
   const [refresh, setRefresh] = useState(0);
   const [now] = useState(() => new Date());
 
@@ -180,6 +186,7 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
     locked: saved || outcome !== null,
   });
   const panel = screeningPanel(verdict);
+  const canScreen = canScreenStaged({ staged, locked });
 
   async function uploadPhoto(file: File) {
     // The old photo's verdict must not outlive a replaced preview: acceptance
@@ -206,6 +213,10 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
         }
         setVerdict(next);
         setPhotoUploaded(true);
+        // KNOWN LIMIT: on a phone, step 3 still shows the existing p28 layout until
+        // the p48 task; a retake there uploads immediately instead of staging.
+        setStaged(false);
+        setStep("check");
         return;
       }
       setTrouble(troubleFrom(response.status, body, "photo"));
@@ -288,21 +299,42 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
     }
   }
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+  /** Check, replace the preview and remember the file; null when nothing usable was chosen. */
+  function preparePhoto(event: ChangeEvent<HTMLInputElement>): File | null {
     const file = event.target.files?.[0] ?? null;
     // Reset so choosing the same file again still fires a change event.
     event.target.value = "";
-    if (file === null) return;
+    if (file === null) return null;
     const check = checkPhotoFile(file);
     if (!check.ok) {
       setTrouble({ message: check.message, href: null, linkLabel: null, retry: null });
-      return;
+      return null;
     }
     if (previewRef.current !== null) URL.revokeObjectURL(previewRef.current);
     const url = URL.createObjectURL(file);
     previewRef.current = url;
     setPreviewUrl(url);
     lastFile.current = file;
+    return file;
+  }
+
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = preparePhoto(event);
+    if (file !== null) void uploadPhoto(file);
+  }
+
+  function onPhoneFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = preparePhoto(event);
+    if (file === null) return;
+    setTrouble(null);
+    setVerdict(null);
+    setPhotoUploaded(false);
+    setStaged(true);
+  }
+
+  function onScreen() {
+    const file = lastFile.current;
+    if (file === null) return;
     void uploadPhoto(file);
   }
 
@@ -343,13 +375,21 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
   }
 
   const result = outcome === null ? null : outcomePanel(outcome);
+  const stagedPhoto = task !== null && outcome === null && step === "photo";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
-      <h1 className="text-[32px] font-semibold leading-tight text-[#17261F]">
+      <h1
+        className={
+          (stagedPhoto ? "hidden md:block " : "") +
+          "text-[32px] font-semibold leading-tight text-[#17261F]"
+        }
+      >
         Inspect before accepting pickup
       </h1>
-      <p className="mt-2 text-[15px] text-[#63746D]">{subtitle}</p>
+      <p className={(stagedPhoto ? "hidden md:block " : "") + "mt-2 text-[15px] text-[#63746D]"}>
+        {subtitle}
+      </p>
 
       {trouble !== null ? (
         <div role="alert" className={STRIP}>
@@ -384,8 +424,29 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
             Back to your tasks
           </Link>
         </section>
-      ) : task === null ? null : (
-        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+      ) : null}
+
+      {result === null && task !== null && stagedPhoto ? (
+        // The phone root cancels the view padding, so pad the wrapper when the
+        // trouble strip above must keep its own space.
+        <div className={trouble === null ? "md:hidden" : "md:hidden pt-10"}>
+          <PhotoStepMobile
+            code={taskCode(task.shortCode)}
+            portionsLabel={portionsText(task.portions)}
+            foodName={task.foodName}
+            previewUrl={previewUrl}
+            canScreen={canScreen}
+            locked={locked}
+            onFileChange={onPhoneFileChange}
+            onScreen={onScreen}
+          />
+        </div>
+      ) : null}
+
+      {result === null && task !== null ? (
+        <div
+          className={(stagedPhoto ? "hidden md:grid" : "grid") + " mt-10 gap-6 lg:grid-cols-2"}
+        >
           <section className="flex flex-col rounded-xl bg-white p-6">
             <h2 className="text-[22px] font-semibold text-[#17261F]">Your pickup photo</h2>
             {previewUrl === null ? (
@@ -502,9 +563,11 @@ export function PickupInspectionView({ donationId }: { donationId: string }) {
             </div>
           </section>
         </div>
-      )}
+      ) : null}
 
-      <p className="mt-9 text-[15px] text-[#63746D]">{donorChecklistLine(checklist, now)}</p>
+      <p className={(stagedPhoto ? "hidden md:block " : "") + "mt-9 text-[15px] text-[#63746D]"}>
+        {donorChecklistLine(checklist, now)}
+      </p>
     </div>
   );
 }
