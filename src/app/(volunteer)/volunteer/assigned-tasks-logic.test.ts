@@ -96,7 +96,7 @@ describe("mapRow", () => {
     expect(row.food).toBe("Rice bowls");
     expect(row.status).toBe("Assigned");
     expect(row.action).toBe("View task");
-    expect(row.viewTaskHref).toBe("/volunteer/scan");
+    expect(row.viewTaskHref).toBe(`/volunteer/donations/${DONATION_ID}`);
   });
 
   it("writes the p12 pickup window format", () => {
@@ -124,7 +124,7 @@ describe("mapRow", () => {
   });
 
   it("links View task for an ASSIGNED row only", () => {
-    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toBe("/volunteer/scan");
+    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toBe(`/volunteer/donations/${DONATION_ID}`);
   });
 
   it("keeps PICKED_UP and DELIVERED rows non-clickable", () => {
@@ -132,8 +132,8 @@ describe("mapRow", () => {
     expect(mapRow(item({ status: "DELIVERED" })).viewTaskHref).toBeNull();
   });
 
-  it("puts no donation id in the View task link", () => {
-    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).not.toContain(DONATION_ID);
+  it("puts the donation id in the View task link", () => {
+    expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toContain(DONATION_ID);
   });
 });
 

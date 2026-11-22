@@ -2,7 +2,9 @@ import { formatWindow } from "@/app/(donor)/donor/donate/review-logic";
 import {
   NOT_SET,
   STATUS_LABELS,
+  loadFailure,
   taskCode,
+  type LoadFailure,
 } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
 import { STORAGE_LABELS, type TaskDetail } from "./inspection/pickup-inspection-logic";
 import type { VolunteerChecklistResponse } from "@/contracts/volunteer-checklist";
@@ -152,4 +154,23 @@ export function buildSafetyLines(
     storageLine(checklist).join(" · "),
     packagingLine(checklist),
   ];
+}
+
+/** The task answer route for one donation; the id is encoded, never a token. */
+export function taskDetailPath(donationId: string): string {
+  return `/api/volunteer/donations/${encodeURIComponent(donationId)}`;
+}
+
+/** The donor checklist answer route, under the task route. */
+export function checklistPath(donationId: string): string {
+  return `${taskDetailPath(donationId)}/checklist`;
+}
+
+/** Why the task could not be shown: 404 first, then the shared session and generic failures. */
+export type TaskLoadFailure = "notFound" | LoadFailure;
+
+/** 404 (unknown, malformed id or not this volunteer's task) is not a session or network problem. */
+export function taskLoadFailure(status: number): TaskLoadFailure {
+  if (status === 404) return "notFound";
+  return loadFailure(status);
 }

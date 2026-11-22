@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { StorageCondition } from "@/contracts/enums";
 import type { VolunteerChecklistResponse } from "@/contracts/volunteer-checklist";
 import type { TaskDetail } from "./inspection/pickup-inspection-logic";
-import { buildSafetyLines, buildTaskView } from "./task-detail-logic";
+import {
+  buildSafetyLines,
+  buildTaskView,
+  checklistPath,
+  taskDetailPath,
+  taskLoadFailure,
+} from "./task-detail-logic";
 
 // Every date is built with the local constructor so the test never depends on a fixed zone.
 const NOW = new Date(2026, 10, 21, 12, 0);
@@ -199,5 +205,25 @@ describe("buildSafetyLines", () => {
       "Packaging not recorded · Opened or leftover",
     );
     expect(buildSafetyLines(checklist(), NOW)[2]).toBe("Packaging not recorded · Not recorded");
+  });
+});
+
+describe("screen paths and failures", () => {
+  it("builds both answer routes and encodes the id", () => {
+    expect(taskDetailPath("9fc03951-1111-4111-8111-111111111111")).toBe(
+      "/api/volunteer/donations/9fc03951-1111-4111-8111-111111111111",
+    );
+    expect(taskDetailPath("../secrets")).toBe("/api/volunteer/donations/..%2Fsecrets");
+    expect(checklistPath("9fc03951-1111-4111-8111-111111111111")).toBe(
+      "/api/volunteer/donations/9fc03951-1111-4111-8111-111111111111/checklist",
+    );
+  });
+
+  it("maps a response status to the screen failure", () => {
+    expect(taskLoadFailure(404)).toBe("notFound");
+    expect(taskLoadFailure(401)).toBe("session");
+    expect(taskLoadFailure(403)).toBe("session");
+    expect(taskLoadFailure(500)).toBe("error");
+    expect(taskLoadFailure(0)).toBe("error");
   });
 });

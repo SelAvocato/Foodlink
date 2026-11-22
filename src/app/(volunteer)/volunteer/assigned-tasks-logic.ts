@@ -78,8 +78,8 @@ export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
     window: window ?? NOT_SET,
     status: STATUS_LABELS[item.status],
     action: item.status === "DELIVERED" ? "Record distribution" : "View task",
-    // Only an ASSIGNED donation has a screen to open yet, and the link carries no id or token.
-    viewTaskHref: item.status === "ASSIGNED" ? "/volunteer/scan" : null,
+    // Only an ASSIGNED donation has a task detail screen; the link carries the id, no token.
+    viewTaskHref: item.status === "ASSIGNED" ? `/volunteer/donations/${item.donationId}` : null,
   };
 }
 

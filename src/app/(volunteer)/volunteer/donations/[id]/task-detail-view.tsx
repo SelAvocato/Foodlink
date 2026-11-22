@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/shared/skeleton";
 import { SCAN_PATH } from "./inspection/pickup-inspection-logic";
 import type { TaskView } from "./task-detail-logic";
+
+/** The safety section's own state: only an ASSIGNED task has one. */
+export type SafetyState =
+  | { kind: "hidden" }
+  | { kind: "loading" }
+  | { kind: "lines"; lines: string[] }
+  | { kind: "error" };
 
 /**
  * The p45 task detail body: one centered column, no shell (the volunteer layout
@@ -9,10 +17,10 @@ import type { TaskView } from "./task-detail-logic";
  */
 export function TaskDetailView({
   view,
-  safetyLines,
+  safety,
 }: {
   view: TaskView;
-  safetyLines: string[];
+  safety: SafetyState;
 }) {
   return (
     <div className="mx-auto w-full max-w-md">
@@ -44,14 +52,31 @@ export function TaskDetailView({
         </Button>
       ) : null}
 
-      <h2 className="mt-8 text-heading font-semibold text-foreground">Donor safety details</h2>
-      <div className="mt-3 flex flex-col gap-2">
-        {safetyLines.map((line, index) => (
-          <p key={index} className="text-body leading-relaxed text-muted-foreground">
-            {line}
-          </p>
-        ))}
-      </div>
+      {safety.kind === "hidden" ? null : (
+        <>
+          <h2 className="mt-8 text-heading font-semibold text-foreground">Donor safety details</h2>
+          {safety.kind === "loading" ? (
+            <div role="status" aria-busy="true" className="mt-3 flex flex-col gap-2">
+              <span className="sr-only">Loading donor safety details…</span>
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-11/12" />
+              <Skeleton className="h-5 w-10/12" />
+            </div>
+          ) : safety.kind === "error" ? (
+            <p className="mt-3 text-body leading-relaxed text-muted-foreground">
+              Donor safety details could not be loaded.
+            </p>
+          ) : (
+            <div className="mt-3 flex flex-col gap-2">
+              {safety.lines.map((line, index) => (
+                <p key={index} className="text-body leading-relaxed text-muted-foreground">
+                  {line}
+                </p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
