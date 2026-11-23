@@ -9,12 +9,26 @@ import {
   scanCopy,
   stateFromResponse,
   tokenFromHash,
+  tokenFromScannedText,
   type ScanState,
 } from "./scan-logic";
+import { CameraScanner, type CameraErrorKind } from "./camera-scanner";
+
+type CameraMessageKind = CameraErrorKind | "notLabel";
+
+const CAMERA_MESSAGES: Record<CameraMessageKind, string> = {
+  denied:
+    "Camera permission was denied. Allow camera access in your browser settings, or open the QR label with your phone's camera app.",
+  unavailable:
+    "This browser cannot open the camera here. Open the QR label with your phone's camera app.",
+  notLabel: "This QR is not a FoodLink label.",
+};
 
 export function ScanView() {
   const router = useRouter();
   const [state, setState] = useState<ScanState>({ kind: "idle" });
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState<CameraMessageKind | null>(null);
   // The hash is cleared before the request, so a retry must read the token here.
   const tokenRef = useRef<string | null>(null);
   // Only the newest attempt may change the screen or navigate.
@@ -81,6 +95,39 @@ export function ScanView() {
     if (token !== null) void submit(token);
   }
 
+  const handleCameraDecoded = useCallback(
+    (text: string) => {
+      const token = tokenFromScannedText(text);
+      if (token === null) {
+        // Not a label URL: keep the camera on so the volunteer can retry.
+        setCameraMessage("notLabel");
+        return;
+      }
+      setCameraOn(false);
+      setCameraMessage(null);
+      // The token must be here before submit, so Try again works after a camera scan.
+      tokenRef.current = token;
+      void submit(token);
+    },
+    [submit],
+  );
+
+  const handleCameraError = useCallback((kind: CameraErrorKind) => {
+    setCameraOn(false);
+    setCameraMessage(kind);
+  }, []);
+
+  function toggleCamera() {
+    if (cameraOn) {
+      setCameraOn(false);
+      return;
+    }
+    setCameraOn(true);
+    setCameraMessage(null);
+    // A camera retry starts clean, so an old error disappears.
+    setState({ kind: "idle" });
+  }
+
   const copy = scanCopy(state);
   // Only an unreachable server offers a retry, and that state only follows a scan.
   const canRetry = isRetryable(state);
@@ -91,6 +138,9 @@ export function ScanView() {
       <p className="mt-2 text-[15px] text-[#63746D]">Step 1 of 3 · Pickup verification</p>
 
       <div className="relative mt-9 h-[353px] w-full rounded-2xl bg-[#1D3029]">
+        {cameraOn ? (
+          <CameraScanner onDecoded={handleCameraDecoded} onCameraError={handleCameraError} />
+        ) : null}
         <p className="absolute left-[22px] top-[22px] pr-4 text-[15px] text-white">
           Point the camera at the donor’s QR label
         </p>
@@ -129,12 +179,22 @@ export function ScanView() {
         </div>
       ) : null}
 
+      {cameraMessage !== null ? (
+        <div
+          role="alert"
+          className="mt-6 rounded-xl bg-[#EAF4EE] px-5 py-5 text-[15px] leading-6 text-[#885B16]"
+        >
+          <p>{CAMERA_MESSAGES[cameraMessage]}</p>
+        </div>
+      ) : null}
+
       <button
         type="button"
-        disabled
+        disabled={state.kind === "scanning"}
+        onClick={toggleCamera}
         className="mt-9 inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#176448] px-6 text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Enable camera
+        {cameraOn ? "Stop camera" : "Enable camera"}
       </button>
       <p className="mt-5 text-[15px] text-[#63746D]">Camera access is required to scan.</p>
     </div>
