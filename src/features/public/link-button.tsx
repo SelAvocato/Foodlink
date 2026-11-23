@@ -20,7 +20,7 @@ export function LinkButton({
         "inline-flex min-h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         variant === "primary"
           ? "bg-primary text-primary-foreground hover:bg-primary/90"
-          : "border border-border bg-card text-primary hover:bg-success",
+          : "border border-border bg-card text-primary hover:bg-muted",
         className,
       )}
     >

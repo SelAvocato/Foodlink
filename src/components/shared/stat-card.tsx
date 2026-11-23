@@ -25,7 +25,7 @@ export function StatCard({
     >
       {variant === "attention" ? (
         <>
-          <p className="text-display font-semibold text-warning-foreground">{value}</p>
+          <p className="text-display font-semibold tabular-nums text-warning-foreground">{value}</p>
           <p className="text-body font-medium text-warning-foreground">{label}</p>
         </>
       ) : (
@@ -33,7 +33,7 @@ export function StatCard({
           <p className="text-body text-muted-foreground">{label}</p>
           <p
             className={cn(
-              "mt-2 text-display font-semibold",
+              "mt-2 text-display font-semibold tabular-nums",
               variant === "brand" ? "text-primary" : "text-foreground",
             )}
           >
