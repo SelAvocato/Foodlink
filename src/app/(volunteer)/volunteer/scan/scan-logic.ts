@@ -21,6 +21,52 @@ export function tokenFromHash(hash: string): string | null {
   return token === "" ? null : token;
 }
 
+/**
+ * The token inside the text a camera decoded, or null when the text is not a URL
+ * with a non-empty fragment. The label encodes <origin>/volunteer/scan#<token>.
+ * The origin is not checked: a label printed on one deployment must still scan
+ * on another, and the server validates the token anyway.
+ */
+export function tokenFromScannedText(text: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(text.trim());
+  } catch {
+    return null;
+  }
+  return tokenFromHash(url.hash);
+}
+
+/** The part of a video frame to read, in video pixels. */
+export type FrameCrop = { sx: number; sy: number; sw: number; sh: number };
+
+/**
+ * The source rectangle that object-cover keeps when a video fills a box. The
+ * decoder reads only this area, so a label outside the preview cannot scan.
+ * A size that is 0 or not finite gives the whole frame.
+ */
+export function coverCrop(
+  videoWidth: number,
+  videoHeight: number,
+  boxWidth: number,
+  boxHeight: number,
+): FrameCrop {
+  const whole = { sx: 0, sy: 0, sw: videoWidth, sh: videoHeight };
+  if ([videoWidth, videoHeight, boxWidth, boxHeight].some((n) => !Number.isFinite(n) || n <= 0)) {
+    return whole;
+  }
+  const videoRatio = videoWidth / videoHeight;
+  const boxRatio = boxWidth / boxHeight;
+  if (videoRatio > boxRatio) {
+    // The video is wider than the box: the left and right edges are cut.
+    const sw = videoHeight * boxRatio;
+    return { sx: (videoWidth - sw) / 2, sy: 0, sw, sh: videoHeight };
+  }
+  // The video is as tall as or taller than the box: the top and bottom are cut.
+  const sh = videoWidth / boxRatio;
+  return { sx: 0, sy: (videoHeight - sh) / 2, sw: videoWidth, sh };
+}
+
 /** The inspection screen for a donation. The id is encoded; no token is added. */
 export function inspectionPath(donationId: string): string {
   return "/volunteer/donations/" + encodeURIComponent(donationId) + "/inspection";
