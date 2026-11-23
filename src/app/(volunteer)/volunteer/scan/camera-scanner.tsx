@@ -45,7 +45,10 @@ export function CameraScanner({ onDecoded, onCameraError }: CameraScannerProps) 
 
     function stopStream() {
       if (stream !== null) {
-        for (const track of stream.getTracks()) track.stop();
+        for (const track of stream.getTracks()) {
+          track.removeEventListener("ended", handleEnded);
+          track.stop();
+        }
         stream = null;
       }
       video.srcObject = null;
@@ -56,6 +59,11 @@ export function CameraScanner({ onDecoded, onCameraError }: CameraScannerProps) 
       if (cancelled) return;
       stopStream();
       onCameraError(cameraErrorKind(error));
+    }
+
+    function handleEnded() {
+      // The camera was unplugged, taken by another app or its permission was revoked.
+      fail(new Error("The camera track ended"));
     }
 
     function decodeFrame() {
@@ -114,6 +122,7 @@ export function CameraScanner({ onDecoded, onCameraError }: CameraScannerProps) 
           return;
         }
         stream = next;
+        for (const track of next.getTracks()) track.addEventListener("ended", handleEnded);
         video.srcObject = next;
         return video.play().then(() => {
           if (cancelled) return;
