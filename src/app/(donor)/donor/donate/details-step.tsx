@@ -481,7 +481,7 @@ export function DetailsStep({
                 disabled={fieldsDisabled}
                 onClick={() => setMapOpen((open) => !open)}
               >
-                Set location on map
+                {mapOpen ? "Close map" : "Set location on map"}
               </Button>
             </div>
             {mapOpen ? (
