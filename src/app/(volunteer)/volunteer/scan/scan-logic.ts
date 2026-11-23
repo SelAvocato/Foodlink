@@ -21,6 +21,22 @@ export function tokenFromHash(hash: string): string | null {
   return token === "" ? null : token;
 }
 
+/**
+ * The token inside the text a camera decoded, or null when the text is not a URL
+ * with a non-empty fragment. The label encodes <origin>/volunteer/scan#<token>.
+ * The origin is not checked: a label printed on one deployment must still scan
+ * on another, and the server validates the token anyway.
+ */
+export function tokenFromScannedText(text: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(text.trim());
+  } catch {
+    return null;
+  }
+  return tokenFromHash(url.hash);
+}
+
 /** The inspection screen for a donation. The id is encoded; no token is added. */
 export function inspectionPath(donationId: string): string {
   return "/volunteer/donations/" + encodeURIComponent(donationId) + "/inspection";
