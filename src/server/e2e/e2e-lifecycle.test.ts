@@ -5,11 +5,18 @@ vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const dotenv = require("dotenv");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { readFileSync } = require("node:fs");
-  process.loadEnvFile(".env.local");
-  const localEnv = dotenv.parse(readFileSync(".env.local"));
-  const databaseUrl = localEnv.DIRECT_URL || localEnv.DATABASE_URL;
-  if (!databaseUrl) throw new Error("Set DIRECT_URL or DATABASE_URL in .env.local");
+  const { existsSync, readFileSync } = require("node:fs");
+  const hasLocalEnv = existsSync(".env.local");
+  if (hasLocalEnv) process.loadEnvFile(".env.local");
+  const localEnv = hasLocalEnv ? dotenv.parse(readFileSync(".env.local")) : {};
+  const databaseUrl =
+    localEnv.DIRECT_URL ||
+    localEnv.DATABASE_URL ||
+    process.env.DIRECT_URL ||
+    process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("Set DIRECT_URL or DATABASE_URL in .env.local or the CI environment");
+  }
   process.env.DATABASE_URL = databaseUrl;
 });
 

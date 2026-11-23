@@ -17,7 +17,7 @@ reviews:
         Every donation status change must go through transitionDonation() in src/server/donations/transition-donation.ts. Flag direct UPDATE donations SET status statements, duplicated transition logic, wrappers that skip the tracking event, donor notification or audit row, and any new service that writes a status outside the central rule.
     - path: "src/server/e2e/**"
       instructions: |
-        End-to-end tests must use the real Prisma client and .env.local (DIRECT_URL first). Only the network boundaries may be faked: server-only, storage and screening provider. Require run-specific data, full cleanup by id, assertions for every transition event, reconciled portion totals and achievement side effects.
+        End-to-end tests must use the real Prisma client and .env.local when present (DIRECT_URL first), falling back to the CI job's DIRECT_URL/DATABASE_URL when it is absent. Only the network boundaries may be faked: server-only, storage and screening provider. Require run-specific data, full cleanup by id, assertions for every transition event, reconciled portion totals and achievement side effects.
     - path: "docs/PROJECT_NOTES.md"
       instructions: |
         Flag unresolved merge-conflict markers, decisions without a date or author, and changes to architecture or workflow that are not backed by a code change or explicit team decision.
