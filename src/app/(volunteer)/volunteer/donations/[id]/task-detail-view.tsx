@@ -52,6 +52,12 @@ export function TaskDetailView({
         </Button>
       ) : null}
 
+      {view.dropOffHref ? (
+        <Button asChild className="mt-4 h-[52px] w-full rounded-sm text-base font-semibold">
+          <Link href={view.dropOffHref}>Record drop-off</Link>
+        </Button>
+      ) : null}
+
       {safety.kind === "hidden" ? null : (
         <>
           <h2 className="mt-8 text-heading font-semibold text-foreground">Donor safety details</h2>

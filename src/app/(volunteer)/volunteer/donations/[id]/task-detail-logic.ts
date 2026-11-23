@@ -7,6 +7,7 @@ import {
   type LoadFailure,
 } from "@/app/(volunteer)/volunteer/assigned-tasks-logic";
 import { STORAGE_LABELS, type TaskDetail } from "./inspection/pickup-inspection-logic";
+import { dropoffPagePath } from "./dropoff/dropoff-logic";
 import type { VolunteerChecklistResponse } from "@/contracts/volunteer-checklist";
 
 /** A date the checklist never saved reads this instead of a time. */
@@ -25,6 +26,8 @@ export type TaskView = {
   window: string;
   /** Only an ASSIGNED task has a pickup QR to scan. */
   canScan: boolean;
+  /** Only a PICKED_UP task can be dropped off. */
+  dropOffHref: string | null;
 };
 
 export function buildTaskView(task: TaskDetail, timeZone?: string): TaskView {
@@ -42,6 +45,8 @@ export function buildTaskView(task: TaskDetail, timeZone?: string): TaskView {
     address: task.pickupAddress ?? NOT_SET,
     window: window ?? NOT_SET,
     canScan: task.status === "ASSIGNED",
+    dropOffHref:
+      task.status === "PICKED_UP" ? dropoffPagePath(task.donationId) : null,
   };
 }
 

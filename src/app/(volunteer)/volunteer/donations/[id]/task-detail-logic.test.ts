@@ -55,6 +55,7 @@ describe("buildTaskView", () => {
       address: "18 Mabini Street, Brgy. Central, Quezon City",
       window: "21 Nov 2026 · 2:00–4:00 PM",
       canScan: true,
+      dropOffHref: null,
     });
   });
 
