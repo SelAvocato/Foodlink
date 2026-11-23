@@ -4,6 +4,7 @@ import {
   type VolunteerDonationStatus,
 } from "@/contracts/volunteer-donation-list";
 import { formatWindow } from "@/app/(donor)/donor/donate/review-logic";
+import { dropoffPagePath } from "./donations/[id]/dropoff/dropoff-logic";
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 export const PAGE_SIZE = 50;
@@ -77,9 +78,19 @@ export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
     location: item.pickupAddress ?? NOT_SET,
     window: window ?? NOT_SET,
     status: STATUS_LABELS[item.status],
-    action: item.status === "DELIVERED" ? "Record distribution" : "View task",
-    // Only an ASSIGNED donation has a task detail screen; the link carries the id, no token.
-    viewTaskHref: item.status === "ASSIGNED" ? `/volunteer/donations/${item.donationId}` : null,
+    action:
+      item.status === "DELIVERED"
+        ? "Record distribution"
+        : item.status === "PICKED_UP"
+          ? "Record drop-off"
+          : "View task",
+    // ASSIGNED opens the task detail; PICKED_UP opens drop-off; the link carries the id, no token.
+    viewTaskHref:
+      item.status === "ASSIGNED"
+        ? `/volunteer/donations/${item.donationId}`
+        : item.status === "PICKED_UP"
+          ? dropoffPagePath(item.donationId)
+          : null,
   };
 }
 

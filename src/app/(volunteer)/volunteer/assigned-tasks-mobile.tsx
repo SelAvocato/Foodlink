@@ -66,9 +66,9 @@ export function AssignedTasksMobile({
                 </p>
               ) : null}
 
-              {item.status === "ASSIGNED" && row.viewTaskHref !== null ? (
+              {row.viewTaskHref !== null ? (
                 <Button asChild className={CARD_BUTTON}>
-                  <Link href={row.viewTaskHref}>View task</Link>
+                  <Link href={row.viewTaskHref}>{row.action}</Link>
                 </Button>
               ) : null}
 

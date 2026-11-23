@@ -14,6 +14,7 @@ import {
   taskCode,
   type TaskItem,
 } from "./assigned-tasks-logic";
+import { dropoffPagePath } from "./donations/[id]/dropoff/dropoff-logic";
 
 const PHONE = "+63 900 000 0000";
 const DONATION_ID = "9fc03951-1111-4111-8111-111111111111";
@@ -118,7 +119,7 @@ describe("mapRow", () => {
 
   it("labels every status and the delivered action", () => {
     expect(mapRow(item({ status: "PICKED_UP" })).status).toBe("Picked up");
-    expect(mapRow(item({ status: "PICKED_UP" })).action).toBe("View task");
+    expect(mapRow(item({ status: "PICKED_UP" })).action).toBe("Record drop-off");
     expect(mapRow(item({ status: "DELIVERED" })).status).toBe("Delivered");
     expect(mapRow(item({ status: "DELIVERED" })).action).toBe("Record distribution");
   });
@@ -127,8 +128,10 @@ describe("mapRow", () => {
     expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toBe(`/volunteer/donations/${DONATION_ID}`);
   });
 
-  it("keeps PICKED_UP and DELIVERED rows non-clickable", () => {
-    expect(mapRow(item({ status: "PICKED_UP" })).viewTaskHref).toBeNull();
+  it("links PICKED_UP rows to drop-off and keeps DELIVERED rows non-clickable", () => {
+    expect(mapRow(item({ status: "PICKED_UP" })).viewTaskHref).toBe(
+      dropoffPagePath(DONATION_ID),
+    );
     expect(mapRow(item({ status: "DELIVERED" })).viewTaskHref).toBeNull();
   });
 
