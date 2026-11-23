@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import jsQR from "jsqr";
+import { coverCrop } from "./scan-logic";
 
 /** The label is dark on light, so the inverted pass only costs frames. */
 const QR_OPTIONS = { inversionAttempts: "dontInvert" } as const;
@@ -80,12 +81,19 @@ export function CameraScanner({ onDecoded, onCameraError }: CameraScannerProps) 
         return;
       }
 
-      const scale = Math.min(1, MAX_FRAME_WIDTH / video.videoWidth);
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      // Read only what the preview shows, so a label outside it cannot scan.
+      const crop = coverCrop(
+        video.videoWidth,
+        video.videoHeight,
+        video.clientWidth,
+        video.clientHeight,
+      );
+      const scale = Math.min(1, MAX_FRAME_WIDTH / crop.sw);
+      const width = Math.max(1, Math.round(crop.sw * scale));
+      const height = Math.max(1, Math.round(crop.sh * scale));
       canvas.width = width;
       canvas.height = height;
-      context.drawImage(video, 0, 0, width, height);
+      context.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, width, height);
 
       const image = context.getImageData(0, 0, width, height);
       const result = jsQR(image.data, width, height, QR_OPTIONS);
