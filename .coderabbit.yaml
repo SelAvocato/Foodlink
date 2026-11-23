@@ -1,0 +1,23 @@
+language: en-US
+early_access: false
+reviews:
+  profile: assertive
+  path_instructions:
+    - path: "db/**"
+      instructions: |
+        The database catalog is locked for C10. Flag any new, altered or dropped table, view, trigger, function, procedure, index, enum, check constraint or RLS policy. Flag raw DDL and migration changes that would change the counts pinned in db/ci-check.sql. Do not propose a schema edit as a quick fix; require an explicit decision-log entry in docs/PROJECT_NOTES.md and matching catalog checks first.
+    - path: "prisma/**"
+      instructions: |
+        Prisma schema and migration changes must mirror the locked baseline in db/baseline. Flag model, enum or migration edits, and flag any generated client change that does not have a corresponding reviewed database change.
+    - path: "db/ci-check.sql"
+      instructions: |
+        This file pins the locked catalog: 35 tables, 5 views, 21 non-internal triggers, 14 functions, 1 procedure, 119 indexes, 14 enums, 72 check constraints, 0 public tables without RLS and 5 food categories. Flag any edit to these expectations unless the pull request also contains an approved schema change and a decision-log entry.
+    - path: "src/server/**"
+      instructions: |
+        Every donation status change must go through transitionDonation() in src/server/donations/transition-donation.ts. Flag direct UPDATE donations SET status statements, duplicated transition logic, wrappers that skip the tracking event, donor notification or audit row, and any new service that writes a status outside the central rule.
+    - path: "src/server/e2e/**"
+      instructions: |
+        End-to-end tests must use the real Prisma client and .env.local when present (DIRECT_URL first), falling back to the CI job's DIRECT_URL/DATABASE_URL when it is absent. Only the network boundaries may be faked: server-only, storage and screening provider. Require run-specific data, full cleanup by id, assertions for every transition event, reconciled portion totals and achievement side effects.
+    - path: "docs/PROJECT_NOTES.md"
+      instructions: |
+        Flag unresolved merge-conflict markers, decisions without a date or author, and changes to architecture or workflow that are not backed by a code change or explicit team decision.

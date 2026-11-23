@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
+    "db:ci-anon-role": "prisma db execute --file db/ci-anon-role.sql",
     "db:check": "prisma db execute --file db/ci-check.sql"
   },
   "dependencies": {
