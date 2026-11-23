@@ -1,6 +1,11 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+
+vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const dotenv = require("dotenv");
+  dotenv.config({ path: ".env.local" });
+  process.env.DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
+});
 
 // Mock server-only so Vitest node environment can import server code
 vi.mock("server-only", () => ({}));
@@ -32,12 +37,11 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
   });
 
   it("verifies non-owner role (anon) cannot access protected tables due to RLS", async () => {
-    await expect(
-      prisma.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`SET LOCAL ROLE anon;`);
-        await tx.$queryRawUnsafe(`SELECT * FROM users;`);
-      })
-    ).rejects.toThrow();
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE anon;`);
+      const rows = await tx.$queryRawUnsafe<any[]>(`SELECT * FROM users;`);
+      expect(rows).toHaveLength(0);
+    });
   });
 
   it("enforces guard_user_identity(): rejects mutating role and rejects mutating donor_type after approval", async () => {
@@ -156,8 +160,8 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       const donorId = donorRows[0].id;
 
       const donationRows = await tx.$queryRaw<{ id: string }[]>`
-        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, qr_token)
-        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
+        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
         RETURNING id;
       `;
       const donationId = donationRows[0].id;
@@ -176,6 +180,82 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
     }).catch((err) => {
       expect(err.message).toBe("ROLLBACK_TEST");
     });
+  });
+
+  it("enforces check_assignment_parties(): rejects non-VOLUNTEER volunteer_id and non-ADMIN assigned_by_id", async () => {
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const addressRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test Donor', 'guard-assign-donor@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        const adminRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number)
+          VALUES ('ADMIN', 'ACTIVE', 'Test Admin', 'guard-assign-admin@example.com', '+639123456789')
+          RETURNING id;
+        `;
+        const adminId = adminRows[0].id;
+
+        const donationRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
+          RETURNING id;
+        `;
+        const donationId = donationRows[0].id;
+
+        await tx.$executeRaw`
+          INSERT INTO donation_assignments (donation_id, volunteer_id, assigned_by_id)
+          VALUES (${donationId}::uuid, ${donorId}::uuid, ${adminId}::uuid);
+        `;
+      })
+    ).rejects.toThrow(/volunteer_id must reference a user with role VOLUNTEER/i);
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const addressRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test Donor 2', 'guard-assign-donor2@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        const volRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, address_id)
+          VALUES ('VOLUNTEER', 'ACTIVE', 'Test Vol', 'guard-assign-vol@example.com', '+639123456789', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const volId = volRows[0].id;
+
+        const donationRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
+          RETURNING id;
+        `;
+        const donationId = donationRows[0].id;
+
+        await tx.$executeRaw`
+          INSERT INTO donation_assignments (donation_id, volunteer_id, assigned_by_id)
+          VALUES (${donationId}::uuid, ${volId}::uuid, ${donorId}::uuid);
+        `;
+      })
+    ).rejects.toThrow(/assigned_by_id must reference a user with role ADMIN/i);
   });
 
   it("enforces check_checklist_rules() and check_checklist_after_donation_change()", async () => {
@@ -214,6 +294,47 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
     ).rejects.toThrow();
   });
 
+  it("enforces check_checklist_after_donation_change(): updating donations.pickup_end to >= consume_by_at fails", async () => {
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const addressRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test Checklist Change', 'guard-checkchange@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        const pickupStart = new Date(Date.now() + 86400000);
+        const pickupEnd = new Date(Date.now() + 172800000);
+
+        const donationRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DRAFT', ${addressId}::uuid, ${pickupStart}, ${pickupEnd})
+          RETURNING id;
+        `;
+        const donationId = donationRows[0].id;
+
+        const consumeBy = new Date(pickupEnd.getTime() + 3600000);
+        await tx.$executeRaw`
+          INSERT INTO donation_safety_checklists (donation_id, consume_by_at, packaging_intact, allergens_confirmed, not_customer_plate_leftovers, completed_at)
+          VALUES (${donationId}::uuid, ${consumeBy}, true, true, true, now());
+        `;
+
+        const newPickupEnd = new Date(consumeBy.getTime() + 1000);
+        await tx.$executeRaw`
+          UPDATE donations SET pickup_end = ${newPickupEnd} WHERE id = ${donationId}::uuid;
+        `;
+      })
+    ).rejects.toThrow(/pickup window must end before the consume-by time/i);
+  });
+
   it("enforces guard_portion_records(): rejects when status <> DELIVERED and blocks over-allocation", async () => {
     await expect(
       prisma.$transaction(async (tx) => {
@@ -231,6 +352,13 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         `;
         const donorId = donorRows[0].id;
 
+        const adminRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number)
+          VALUES ('ADMIN', 'ACTIVE', 'Test Admin P', 'guard-adminp@example.com', '+639123456789')
+          RETURNING id;
+        `;
+        const adminId = adminRows[0].id;
+
         const volRows = await tx.$queryRaw<{ id: string }[]>`
           INSERT INTO users (role, status, full_name, email, contact_number, address_id)
           VALUES ('VOLUNTEER', 'ACTIVE', 'Test Vol P', 'guard-volp@example.com', '+639123456789', ${addressId}::uuid)
@@ -239,8 +367,8 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         const volId = volRows[0].id;
 
         const donationRows = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
-          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'ASSIGNED', ${addressId}::uuid, now(), now() + interval '1 day')
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, accepted_by_id, accepted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'ASSIGNED', ${addressId}::uuid, now(), now() + interval '1 day', now(), ${adminId}::uuid, now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
           RETURNING id;
         `;
         const donationId = donationRows[0].id;
@@ -272,6 +400,13 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       `;
       const donorId = donorRows[0].id;
 
+      const adminRows = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO users (role, status, full_name, email, contact_number)
+        VALUES ('ADMIN', 'ACTIVE', 'Test Admin P2', 'guard-adminp2@example.com', '+639123456789')
+        RETURNING id;
+      `;
+      const adminId = adminRows[0].id;
+
       const volRows = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO users (role, status, full_name, email, contact_number, address_id)
         VALUES ('VOLUNTEER', 'ACTIVE', 'Test Vol P2', 'guard-volp2@example.com', '+639123456789', ${addressId}::uuid)
@@ -280,8 +415,8 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       const volId = volRows[0].id;
 
       const donationRows = await tx.$queryRaw<{ id: string }[]>`
-        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
-        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day')
+        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, accepted_by_id, accepted_at, qr_token)
+        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day', now(), ${adminId}::uuid, now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
         RETURNING id;
       `;
       const donationId = donationRows[0].id;
@@ -296,10 +431,12 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         VALUES (${donationId}::uuid, current_date, 'Center', ${groupId}, 5, 6, ${volId}::uuid);
       `;
 
-      await tx.$executeRaw`
-        INSERT INTO distribution_entries (donation_id, distributed_on, place, group_id, people_served, portions_distributed, recorded_by_user_id)
-        VALUES (${donationId}::uuid, current_date, 'Center 2', ${groupId}, 5, 5, ${volId}::uuid);
-      `;
+      await expect(
+        tx.$executeRaw`
+          INSERT INTO distribution_entries (donation_id, distributed_on, place, group_id, people_served, portions_distributed, recorded_by_user_id)
+          VALUES (${donationId}::uuid, current_date, 'Center 2', ${groupId}, 5, 5, ${volId}::uuid);
+        `
+      ).rejects.toThrow(/exceeds portions donated/i);
 
       throw new Error("ROLLBACK_TEST");
     }).catch((err) => {
@@ -324,9 +461,16 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         `;
         const donorId = donorRows[0].id;
 
+        const adminRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number)
+          VALUES ('ADMIN', 'ACTIVE', 'Test Admin C', 'guard-adminc@example.com', '+639123456789')
+          RETURNING id;
+        `;
+        const adminId = adminRows[0].id;
+
         const donationRows = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
-          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day')
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, accepted_by_id, accepted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day', now(), ${adminId}::uuid, now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
           RETURNING id;
         `;
         const donationId = donationRows[0].id;
@@ -378,6 +522,74 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         `;
       })
     ).rejects.toThrow();
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const addressRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test Tracking', 'guard-tracking@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        const donationRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
+          RETURNING id;
+        `;
+        const donationId = donationRows[0].id;
+
+        await tx.$executeRaw`
+          INSERT INTO donation_tracking_events (donation_id, from_status, to_status)
+          VALUES (${donationId}::uuid, 'DRAFT', 'POSTED');
+        `;
+
+        await tx.$executeRaw`
+          UPDATE donation_tracking_events SET event_note = 'modified';
+        `;
+      })
+    ).rejects.toThrow(/donation_tracking_events is append-only/i);
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const addressRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test Tracking 2', 'guard-tracking2@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        const donationRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
+          RETURNING id;
+        `;
+        const donationId = donationRows[0].id;
+
+        await tx.$executeRaw`
+          INSERT INTO donation_tracking_events (donation_id, from_status, to_status)
+          VALUES (${donationId}::uuid, 'DRAFT', 'POSTED');
+        `;
+
+        await tx.$executeRaw`
+          DELETE FROM donation_tracking_events;
+        `;
+      })
+    ).rejects.toThrow(/donation_tracking_events is append-only/i);
   });
 
   it("enforces key CHECK constraints and ON DELETE CASCADE from distribution_entries to unusable_portions", async () => {
@@ -423,9 +635,16 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
         `;
         const donorId = donorRows[0].id;
 
+        const adminRows = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number)
+          VALUES ('ADMIN', 'ACTIVE', 'Test Admin U', 'guard-adminu@example.com', '+639123456789')
+          RETURNING id;
+        `;
+        const adminId = adminRows[0].id;
+
         const donationRows = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
-          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day')
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, accepted_by_id, accepted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day', now(), ${adminId}::uuid, now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
           RETURNING id;
         `;
         const donationId = donationRows[0].id;
@@ -452,6 +671,13 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       `;
       const donorId = donorRows[0].id;
 
+      const adminRows = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO users (role, status, full_name, email, contact_number)
+        VALUES ('ADMIN', 'ACTIVE', 'Test Admin C2', 'guard-adminc2@example.com', '+639123456789')
+        RETURNING id;
+      `;
+      const adminId = adminRows[0].id;
+
       const volRows = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO users (role, status, full_name, email, contact_number, address_id)
         VALUES ('VOLUNTEER', 'ACTIVE', 'Test Vol C', 'guard-volc@example.com', '+639123456789', ${addressId}::uuid)
@@ -460,8 +686,8 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       const volId = volRows[0].id;
 
       const donationRows = await tx.$queryRaw<{ id: string }[]>`
-        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end)
-        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day')
+        INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, accepted_by_id, accepted_at, qr_token)
+        VALUES (${donorId}::uuid, 3, 'Produce', 10, 'DELIVERED', ${addressId}::uuid, now(), now() + interval '1 day', now(), ${adminId}::uuid, now(), 'abc123token43byteslongstringxxxxxxxxxxxxxxx')
         RETURNING id;
       `;
       const donationId = donationRows[0].id;
@@ -479,8 +705,8 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
       const entryId = entryRows[0].id;
 
       await tx.$executeRaw`
-        INSERT INTO unusable_portions (donation_id, entry_id, portions, reason)
-        VALUES (${donationId}::uuid, ${entryId}::uuid, 2, 'DAMAGED');
+        INSERT INTO unusable_portions (donation_id, entry_id, portions, reason, recorded_by_user_id)
+        VALUES (${donationId}::uuid, ${entryId}::uuid, 2, 'DAMAGED', ${volId}::uuid);
       `;
 
       await tx.$executeRaw`
@@ -496,5 +722,38 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
     }).catch((err) => {
       expect(err.message).toBe("ROLLBACK_TEST");
     });
+  });
+
+  it("enforces donations qr_token requirement when status = POSTED and host_organization singleton id = 1", async () => {
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          INSERT INTO host_organization (id, name) VALUES (2, 'Invalid Host');
+        `;
+      })
+    ).rejects.toThrow(/host_organization_single_row/i);
+
+    await expect(
+      prisma.$transaction(async (ts) => {
+        const addressRows = await ts.$queryRaw<{ id: string }[]>`
+          INSERT INTO addresses (street_line1, city, latitude, longitude)
+          VALUES ('123 Test St', 'Manila', 14.5995, 120.9842)
+          RETURNING id;
+        `;
+        const addressId = addressRows[0].id;
+
+        const donorRows = await ts.$queryRaw<{ id: string }[]>`
+          INSERT INTO users (role, status, full_name, email, contact_number, donor_type, address_id)
+          VALUES ('DONOR', 'ACTIVE', 'Test QR', 'guard-qr@example.com', '+639123456789', 'INDIVIDUAL', ${addressId}::uuid)
+          RETURNING id;
+        `;
+        const donorId = donorRows[0].id;
+
+        await ts.$executeRaw`
+          INSERT INTO donations (donor_id, food_category_id, food_name, portions, status, pickup_address_id, pickup_start, pickup_end, posted_at, qr_token)
+          VALUES (${donorId}::uuid, 3, 'Produce', 10, 'POSTED', ${addressId}::uuid, now() + interval '1 day', now() + interval '2 day', now(), 'shorttoken');
+        `;
+      })
+    ).rejects.toThrow(/donations_qr_token_format/i);
   });
 });
