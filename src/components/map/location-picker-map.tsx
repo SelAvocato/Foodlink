@@ -1,8 +1,8 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { divIcon } from "leaflet";
-import { useEffect } from "react";
+import { DomEvent, divIcon } from "leaflet";
+import { useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 
 export interface MapPoint {
@@ -14,6 +14,28 @@ export interface MapPoint {
 const DEFAULT_CENTER: [number, number] = [14.5995, 120.9842];
 const DEFAULT_ZOOM = 12;
 const PICKED_ZOOM = 16;
+
+// Tiles are real up to zoom 19; zooming further stretches the zoom 19 tiles (blurry, not blank).
+// Where Esri has no imagery at a high zoom it may draw a "Map data not yet available" tile.
+const MAX_NATIVE_ZOOM = 19;
+const MAX_ZOOM = 21;
+
+type MapLayerId = "street" | "satellite";
+
+const MAP_LAYER_IDS: MapLayerId[] = ["street", "satellite"];
+
+const MAP_LAYERS: Record<MapLayerId, { label: string; url: string; attribution: string }> = {
+  street: {
+    label: "Street",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
+  satellite: {
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+  },
+};
 
 const PIN_FILL = "#eaf4ee"; // --fl-success
 const PIN_STROKE = "#176448"; // --fl-primary
@@ -69,6 +91,45 @@ function CenterPickButton({ onPick }: { onPick: (point: MapPoint) => void }) {
   );
 }
 
+function LayerToggle({
+  layer,
+  onChange,
+}: {
+  layer: MapLayerId;
+  onChange: (layer: MapLayerId) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Taps and double taps on the switch must not reach the map (no pin, no zoom).
+    if (ref.current) DomEvent.disableClickPropagation(ref.current);
+  }, []);
+  return (
+    <div
+      ref={ref}
+      data-map-control
+      role="group"
+      aria-label="Map type"
+      className="absolute top-2 right-2 z-[1000] flex overflow-hidden rounded-sm border border-(--fl-primary) bg-(--fl-card) shadow-sm"
+    >
+      {MAP_LAYER_IDS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={layer === id}
+          className={
+            layer === id
+              ? "h-9 bg-(--fl-primary) px-3 text-xs font-medium text-white"
+              : "h-9 bg-(--fl-card) px-3 text-xs font-medium text-(--fl-primary)"
+          }
+          onClick={() => onChange(id)}
+        >
+          {MAP_LAYERS[id].label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 interface LocationPickerMapProps {
   value: MapPoint | null;
   flyTo?: FlyTarget | null;
@@ -76,18 +137,25 @@ interface LocationPickerMapProps {
 }
 
 export default function LocationPickerMap({ value, flyTo = null, onPick }: LocationPickerMapProps) {
+  const [layer, setLayer] = useState<MapLayerId>("street");
+  const activeLayer = MAP_LAYERS[layer];
   return (
     <MapContainer
       center={value ? [value.latitude, value.longitude] : DEFAULT_CENTER}
       zoom={value ? PICKED_ZOOM : DEFAULT_ZOOM}
       scrollWheelZoom={false}
       worldCopyJump
+      maxZoom={MAX_ZOOM}
       className="z-0 h-72 w-full rounded-lg"
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        key={layer}
+        attribution={activeLayer.attribution}
+        url={activeLayer.url}
+        maxNativeZoom={MAX_NATIVE_ZOOM}
+        maxZoom={MAX_ZOOM}
       />
+      <LayerToggle layer={layer} onChange={setLayer} />
       <ClickHandler onPick={onPick} />
       <FlyToPoint target={flyTo} />
       <CenterPickButton onPick={onPick} />
