@@ -39,7 +39,7 @@ describe("PostgreSQL Database Guards, Triggers, and Constraints (C10)", () => {
   it("verifies non-owner role (anon) cannot access protected tables due to RLS", async () => {
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL ROLE anon;`);
-      const rows = await tx.$queryRawUnsafe<any[]>(`SELECT * FROM users;`);
+      const rows = await tx.$queryRawUnsafe<unknown[]>(`SELECT * FROM users;`);
       expect(rows).toHaveLength(0);
     });
   });
