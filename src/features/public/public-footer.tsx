@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+const footerLink = "inline-flex min-h-11 items-center font-medium text-primary-foreground hover:underline underline-offset-4 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground";
+
 export function PublicFooter({
   links,
   notes,
@@ -8,28 +10,30 @@ export function PublicFooter({
   notes: string[];
 }) {
   return (
-    <footer className="mx-auto mb-8 max-w-[1280px] px-5 lg:px-8">
-      <div className="rounded-2xl bg-primary p-8 text-primary-foreground">
-        <p className="text-xl font-semibold leading-7">FoodLink System</p>
-        <p className="mt-2 text-sm leading-5 opacity-90">Organized food recovery. Transparent community impact.</p>
-        <p className="mt-6 text-xs leading-[18px] opacity-90">
-          {notes.map((n) => (
-            <span key={n} className="block">
-              {n}
-            </span>
-          ))}
-        </p>
-        <nav aria-label="Footer" className="mt-6 flex flex-wrap gap-x-6 text-xs font-medium">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              className="inline-flex min-h-11 items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
-            >
-              {l.label}
-            </Link>
-          ))}
+    <footer className="mt-8 bg-primary text-primary-foreground">
+      <div className="mx-auto grid max-w-[1200px] gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.5fr] lg:px-8">
+        <div>
+          <p className="text-xl font-semibold leading-7">FoodLink System</p>
+          <p className="mt-2 text-sm leading-5 text-primary-foreground/90 text-pretty">Organized food recovery. Transparent community impact.</p>
+        </div>
+        <nav aria-label="Explore">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary-foreground/70">Explore</h2>
+          <ul>{links.map((l) => <li key={l.href + l.label}><Link href={l.href} className={footerLink}>{l.label}</Link></li>)}</ul>
         </nav>
+        <nav aria-label="Account">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary-foreground/70">Account</h2>
+          <ul>
+            <li><Link href="/login" className={footerLink}>Log in</Link></li>
+            <li><Link href="/#join" className={footerLink}>Sign up</Link></li>
+          </ul>
+        </nav>
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary-foreground/70">Notes</h2>
+          {notes.map((n) => <p key={n} className="text-sm leading-5 text-primary-foreground/90 text-pretty [&+p]:mt-2">{n}</p>)}
+        </div>
+      </div>
+      <div className="border-t border-primary-foreground/20">
+        <div className="mx-auto max-w-[1200px] px-5 py-5 text-xs leading-[18px] text-primary-foreground/80 lg:px-8">Good food. Clear handovers. Accountable impact.</div>
       </div>
     </footer>
   );
