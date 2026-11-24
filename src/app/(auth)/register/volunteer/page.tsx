@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { VolunteerRegistrationForm } from "./volunteer-registration-form";
 
 export const metadata = { title: "Volunteer with us · FoodLink" };
@@ -6,6 +7,14 @@ export default function VolunteerRegistrationPage() {
   return (
     <main className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-(--fl-primary) hover:underline"
+          >
+            <span aria-hidden="true">&larr;</span> Back to home
+          </Link>
+        </div>
         <p className="text-xs font-semibold tracking-wide text-(--fl-primary)">
           FoodLink <span className="px-1">/</span> JOIN THE COMMUNITY
         </p>
