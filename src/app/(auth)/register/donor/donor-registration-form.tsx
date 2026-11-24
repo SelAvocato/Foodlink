@@ -5,6 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProofPreview } from "@/features/auth/proof-preview";
 import {
   LocationPicker,
   type FlyTarget,
@@ -395,6 +396,7 @@ export function DonorRegistrationForm() {
           {...ariaFor("proof", errors.proof)}
         />
       </label>
+      <ProofPreview inputId="proof" />
       <FieldError id="proof" message={errors.proof} />
 
       <div className="mt-8 flex max-w-xl items-start gap-3">

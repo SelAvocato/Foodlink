@@ -5,6 +5,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProofPreview } from "@/features/auth/proof-preview";
 import {
   buildRegistrationFormData,
   interpretRegistrationResponse,
@@ -231,6 +232,7 @@ export function VolunteerRegistrationForm() {
           {...ariaFor("proof", errors.proof)}
         />
       </label>
+      <ProofPreview inputId="proof" />
       {errors.proof === undefined ? null : (
         <p id="proof-error" role="alert" className="text-sm text-destructive">
           {errors.proof}
