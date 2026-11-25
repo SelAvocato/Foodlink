@@ -5,6 +5,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DataPrivacyActDialog } from "@/features/auth/legal/data-privacy-act-dialog";
+import { TermsAndConditionsDialog } from "@/features/auth/legal/terms-and-conditions-dialog";
 import { ProofPreview } from "@/features/auth/proof-preview";
 import {
   buildRegistrationFormData,
@@ -28,7 +30,8 @@ const FOCUS_ORDER: readonly RegistrationFieldKey[] = [
   "city",
   "password",
   "proof",
-  "consent",
+  "termsConsent",
+  "privacyConsent",
   "form",
 ];
 
@@ -71,10 +74,21 @@ function Field({
   );
 }
 
+function ConsentError({ id, message }: { id: string; message?: string }) {
+  if (message === undefined) return null;
+  return (
+    <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+      {message}
+    </p>
+  );
+}
+
 export function VolunteerRegistrationForm() {
   const [errors, setErrors] = useState<RegistrationFormErrors>({});
   const [sending, setSending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -137,77 +151,28 @@ export function VolunteerRegistrationForm() {
 
       <div className="mt-8 grid gap-6 sm:grid-cols-2">
         <Field id="fullName" label="Full name" error={errors.fullName}>
-          <Input
-            id="fullName"
-            name="fullName"
-            autoComplete="name"
-            placeholder="Your full name"
-            {...ariaFor("fullName", errors.fullName)}
-          />
+          <Input id="fullName" name="fullName" autoComplete="name" placeholder="Your full name" {...ariaFor("fullName", errors.fullName)} />
         </Field>
         <Field id="availability" label="Availability (optional)" error={errors.availability}>
-          <Input
-            id="availability"
-            name="availability"
-            placeholder="e.g. Saturdays, 8:00 AM–12:00 PM"
-            {...ariaFor("availability", errors.availability)}
-          />
+          <Input id="availability" name="availability" placeholder="e.g. Saturdays, 8:00 AM-12:00 PM" {...ariaFor("availability", errors.availability)} />
         </Field>
         <Field id="email" label="Email" error={errors.email}>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="name@example.com"
-            {...ariaFor("email", errors.email)}
-          />
+          <Input id="email" name="email" type="email" autoComplete="email" placeholder="name@example.com" {...ariaFor("email", errors.email)} />
         </Field>
         <Field id="contactNumber" label="Contact number" error={errors.contactNumber}>
-          <Input
-            id="contactNumber"
-            name="contactNumber"
-            type="tel"
-            autoComplete="tel"
-            placeholder="+63 9XX XXX XXXX"
-            {...ariaFor("contactNumber", errors.contactNumber)}
-          />
+          <Input id="contactNumber" name="contactNumber" type="tel" autoComplete="tel" placeholder="+63 9XX XXX XXXX" {...ariaFor("contactNumber", errors.contactNumber)} />
         </Field>
         <Field id="streetLine1" label="Street address" error={errors.streetLine1}>
-          <Input
-            id="streetLine1"
-            name="streetLine1"
-            autoComplete="address-line1"
-            placeholder="House number and street"
-            {...ariaFor("streetLine1", errors.streetLine1)}
-          />
+          <Input id="streetLine1" name="streetLine1" autoComplete="address-line1" placeholder="House number and street" {...ariaFor("streetLine1", errors.streetLine1)} />
         </Field>
         <Field id="barangay" label="Barangay (optional)" error={errors.barangay}>
-          <Input
-            id="barangay"
-            name="barangay"
-            placeholder="Barangay"
-            {...ariaFor("barangay", errors.barangay)}
-          />
+          <Input id="barangay" name="barangay" placeholder="Barangay" {...ariaFor("barangay", errors.barangay)} />
         </Field>
         <Field id="city" label="City" error={errors.city}>
-          <Input
-            id="city"
-            name="city"
-            autoComplete="address-level2"
-            placeholder="City"
-            {...ariaFor("city", errors.city)}
-          />
+          <Input id="city" name="city" autoComplete="address-level2" placeholder="City" {...ariaFor("city", errors.city)} />
         </Field>
         <Field id="password" label="Password" error={errors.password}>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Create a strong password"
-            {...ariaFor("password", errors.password)}
-          />
+          <Input id="password" name="password" type="password" autoComplete="new-password" placeholder="Create a strong password" {...ariaFor("password", errors.password)} />
         </Field>
       </div>
       <p className="mt-3 text-xs text-(--fl-muted)">
@@ -220,47 +185,57 @@ export function VolunteerRegistrationForm() {
       >
         <span className="block text-base font-semibold text-(--fl-primary)">Upload valid ID</span>
         <span className="mt-4 block text-sm text-(--fl-muted)">
-          Choose image <span className="px-1">•</span> JPEG, PNG or WebP{" "}
-          <span className="px-1">•</span> Up to 4 MB
+          Choose image <span className="px-1">•</span> JPEG, PNG or WebP <span className="px-1">•</span> Up to 4 MB
         </span>
-        <input
-          id="proof"
-          name="proof"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="sr-only"
-          {...ariaFor("proof", errors.proof)}
-        />
+        <input id="proof" name="proof" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" {...ariaFor("proof", errors.proof)} />
       </label>
       <ProofPreview inputId="proof" />
-      {errors.proof === undefined ? null : (
-        <p id="proof-error" role="alert" className="text-sm text-destructive">
-          {errors.proof}
-        </p>
-      )}
+      <ConsentError id="proof" message={errors.proof} />
 
-      <div className="mt-8 flex max-w-xl items-start gap-3">
-        <input
-          id="consent"
-          name="consent"
-          type="checkbox"
-          value="true"
-          className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)"
-          {...ariaFor("consent", errors.consent)}
-        />
-        <Label htmlFor="consent" className="text-sm leading-6 font-normal text-(--fl-ink)">
-          I consent to the collection and processing of my information under the Data Privacy Act
-          of 2012 (RA 10173).
-        </Label>
+      <div className="mt-8 space-y-4">
+        <div className="flex max-w-xl items-start gap-3">
+          <input
+            id="termsConsent"
+            name="termsConsent"
+            type="checkbox"
+            value="true"
+            className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)"
+            {...ariaFor("termsConsent", errors.termsConsent)}
+          />
+          <div>
+            <Label htmlFor="termsConsent" className="text-sm leading-6 font-normal text-(--fl-ink)">
+              I agree to the Terms and Conditions.
+            </Label>
+            <button type="button" className="mt-1 block text-sm text-(--fl-primary) underline-offset-4 hover:underline" onClick={() => setTermsOpen(true)}>
+              View Terms and Conditions
+            </button>
+          </div>
+        </div>
+        <ConsentError id="termsConsent" message={errors.termsConsent} />
+
+        <div className="flex max-w-xl items-start gap-3">
+          <input
+            id="privacyConsent"
+            name="privacyConsent"
+            type="checkbox"
+            value="true"
+            className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)"
+            {...ariaFor("privacyConsent", errors.privacyConsent)}
+          />
+          <div>
+            <Label htmlFor="privacyConsent" className="text-sm leading-6 font-normal text-(--fl-ink)">
+              I consent to the collection and processing of my information under the Data Privacy Act of 2012 (RA 10173).
+            </Label>
+            <button type="button" className="mt-1 block text-sm text-(--fl-primary) underline-offset-4 hover:underline" onClick={() => setPrivacyOpen(true)}>
+              View Data Privacy Act notice
+            </button>
+          </div>
+        </div>
+        <ConsentError id="privacyConsent" message={errors.privacyConsent} />
       </div>
-      {errors.consent === undefined ? null : (
-        <p id="consent-error" role="alert" className="text-sm text-destructive">
-          {errors.consent}
-        </p>
-      )}
 
       {errors.form === undefined ? null : (
-        <div role="alert" className="rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)">
+        <div role="alert" className="mt-6 rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)">
           {errors.form}
         </div>
       )}
@@ -273,6 +248,9 @@ export function VolunteerRegistrationForm() {
           Already approved? Login
         </Link>
       </div>
+
+      <TermsAndConditionsDialog open={termsOpen} onOpenChange={setTermsOpen} />
+      <DataPrivacyActDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </form>
   );
 }

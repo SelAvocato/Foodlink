@@ -5,6 +5,8 @@ import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DataPrivacyActDialog } from "@/features/auth/legal/data-privacy-act-dialog";
+import { TermsAndConditionsDialog } from "@/features/auth/legal/terms-and-conditions-dialog";
 import { ProofPreview } from "@/features/auth/proof-preview";
 import {
   LocationPicker,
@@ -42,7 +44,8 @@ const FOCUS_ORDER: readonly DonorRegistrationFieldKey[] = [
   "mapPin",
   "password",
   "proof",
-  "consent",
+  "termsConsent",
+  "privacyConsent",
   "form",
 ];
 
@@ -78,6 +81,8 @@ export function DonorRegistrationForm() {
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   // Bumped on every manual map pick, so a slower geolocation answer cannot overwrite it.
   const pickVersion = useRef(0);
 
@@ -201,25 +206,11 @@ export function DonorRegistrationForm() {
           className="flex flex-wrap items-center gap-x-6 gap-y-2"
         >
           <label className="flex cursor-pointer items-center gap-2 text-base font-semibold text-(--fl-ink)">
-            <input
-              type="radio"
-              name="donorType"
-              value="ESTABLISHMENT"
-              checked={donorType === "ESTABLISHMENT"}
-              onChange={() => chooseDonorType("ESTABLISHMENT")}
-              className="size-4 accent-(--fl-primary)"
-            />
+            <input type="radio" name="donorType" value="ESTABLISHMENT" checked={donorType === "ESTABLISHMENT"} onChange={() => chooseDonorType("ESTABLISHMENT")} className="size-4 accent-(--fl-primary)" />
             Establishment
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-base font-semibold text-(--fl-ink)">
-            <input
-              type="radio"
-              name="donorType"
-              value="INDIVIDUAL"
-              checked={donorType === "INDIVIDUAL"}
-              onChange={() => chooseDonorType("INDIVIDUAL")}
-              className="size-4 accent-(--fl-primary)"
-            />
+            <input type="radio" name="donorType" value="INDIVIDUAL" checked={donorType === "INDIVIDUAL"} onChange={() => chooseDonorType("INDIVIDUAL")} className="size-4 accent-(--fl-primary)" />
             Individual
           </label>
         </div>
@@ -230,104 +221,45 @@ export function DonorRegistrationForm() {
 
       <div className="mt-8 grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="fullName" className="text-(--fl-ink)">
-            Full name
-          </Label>
-          <Input
-            id="fullName"
-            name="fullName"
-            placeholder="Your full name"
-            autoComplete="name"
-            {...ariaFor("fullName", errors.fullName)}
-          />
+          <Label htmlFor="fullName" className="text-(--fl-ink)">Full name</Label>
+          <Input id="fullName" name="fullName" placeholder="Your full name" autoComplete="name" {...ariaFor("fullName", errors.fullName)} />
           <FieldError id="fullName" message={errors.fullName} />
         </div>
 
         {donorType === "ESTABLISHMENT" ? (
           <div className="flex flex-col gap-2">
-            <Label htmlFor="businessName" className="text-(--fl-ink)">
-              Business name (establishments only)
-            </Label>
-            <Input
-              id="businessName"
-              name="businessName"
-              placeholder="Business or establishment name"
-              autoComplete="organization"
-              {...ariaFor("businessName", errors.businessName)}
-            />
+            <Label htmlFor="businessName" className="text-(--fl-ink)">Business name (establishments only)</Label>
+            <Input id="businessName" name="businessName" placeholder="Business or establishment name" autoComplete="organization" {...ariaFor("businessName", errors.businessName)} />
             <FieldError id="businessName" message={errors.businessName} />
           </div>
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="email" className="text-(--fl-ink)">
-            Email
-          </Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="name@example.com"
-            autoComplete="email"
-            {...ariaFor("email", errors.email)}
-          />
+          <Label htmlFor="email" className="text-(--fl-ink)">Email</Label>
+          <Input id="email" name="email" type="email" placeholder="name@example.com" autoComplete="email" {...ariaFor("email", errors.email)} />
           <FieldError id="email" message={errors.email} />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="contactNumber" className="text-(--fl-ink)">
-            Contact number
-          </Label>
-          <Input
-            id="contactNumber"
-            name="contactNumber"
-            type="tel"
-            placeholder="+63 9XX XXX XXXX"
-            autoComplete="tel"
-            {...ariaFor("contactNumber", errors.contactNumber)}
-          />
+          <Label htmlFor="contactNumber" className="text-(--fl-ink)">Contact number</Label>
+          <Input id="contactNumber" name="contactNumber" type="tel" placeholder="+63 9XX XXX XXXX" autoComplete="tel" {...ariaFor("contactNumber", errors.contactNumber)} />
           <FieldError id="contactNumber" message={errors.contactNumber} />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="streetLine1" className="text-(--fl-ink)">
-            Address
-          </Label>
-          <Input
-            id="streetLine1"
-            name="streetLine1"
-            placeholder="Street"
-            autoComplete="address-line1"
-            {...ariaFor("streetLine1", errors.streetLine1)}
-          />
+          <Label htmlFor="streetLine1" className="text-(--fl-ink)">Address</Label>
+          <Input id="streetLine1" name="streetLine1" placeholder="Street" autoComplete="address-line1" {...ariaFor("streetLine1", errors.streetLine1)} />
           <FieldError id="streetLine1" message={errors.streetLine1} />
-          <Label htmlFor="barangay" className="sr-only">
-            Barangay (optional)
-          </Label>
-          <Input
-            id="barangay"
-            name="barangay"
-            placeholder="Barangay (optional)"
-            {...ariaFor("barangay", errors.barangay)}
-          />
+          <Label htmlFor="barangay" className="sr-only">Barangay (optional)</Label>
+          <Input id="barangay" name="barangay" placeholder="Barangay (optional)" {...ariaFor("barangay", errors.barangay)} />
           <FieldError id="barangay" message={errors.barangay} />
-          <Label htmlFor="city" className="sr-only">
-            City
-          </Label>
-          <Input
-            id="city"
-            name="city"
-            placeholder="City"
-            autoComplete="address-level2"
-            {...ariaFor("city", errors.city)}
-          />
+          <Label htmlFor="city" className="sr-only">City</Label>
+          <Input id="city" name="city" placeholder="City" autoComplete="address-level2" {...ariaFor("city", errors.city)} />
           <FieldError id="city" message={errors.city} />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="mapPin" className="text-(--fl-ink)">
-            Address map pin
-          </Label>
+          <Label htmlFor="mapPin" className="text-(--fl-ink)">Address map pin</Label>
           <button
             id="mapPin"
             type="button"
@@ -344,11 +276,7 @@ export function DonorRegistrationForm() {
               <Button type="button" variant="outline" onClick={locateMe} disabled={locating}>
                 {locating ? "Finding your location..." : "Use my current location"}
               </Button>
-              {locationMessage ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {locationMessage}
-                </p>
-              ) : null}
+              {locationMessage ? <p role="alert" className="text-sm text-destructive">{locationMessage}</p> : null}
               <div className="overflow-hidden rounded-lg border border-input">
                 <LocationPicker value={pin} flyTo={flyTo} onPick={pickOnMap} />
               </div>
@@ -358,21 +286,10 @@ export function DonorRegistrationForm() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="password" className="text-(--fl-ink)">
-            Password
-          </Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="Create a strong password"
-            autoComplete="new-password"
-            {...ariaFor("password", errors.password)}
-          />
+          <Label htmlFor="password" className="text-(--fl-ink)">Password</Label>
+          <Input id="password" name="password" type="password" placeholder="Create a strong password" autoComplete="new-password" {...ariaFor("password", errors.password)} />
           <FieldError id="password" message={errors.password} />
-          <p className="text-xs text-(--fl-muted)">
-            8+ characters, uppercase, lowercase, number and special character.
-          </p>
+          <p className="text-xs text-(--fl-muted)">8+ characters, uppercase, lowercase, number and special character.</p>
         </div>
       </div>
 
@@ -380,55 +297,52 @@ export function DonorRegistrationForm() {
         htmlFor="proof"
         className="mt-8 block cursor-pointer rounded-xl border border-dashed border-(--fl-muted)/40 bg-(--fl-canvas) p-6 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-(--fl-primary)"
       >
-        <span className="block text-base font-semibold text-(--fl-primary)">
-          Upload business permit / valid ID for individuals
-        </span>
+        <span className="block text-base font-semibold text-(--fl-primary)">Upload business permit / valid ID for individuals</span>
         <span className="mt-4 block text-sm text-(--fl-muted)">
-          Choose image <span className="px-1">•</span> JPEG, PNG or WebP{" "}
-          <span className="px-1">•</span> Up to 4 MB
+          Choose image <span className="px-1">•</span> JPEG, PNG or WebP <span className="px-1">•</span> Up to 4 MB
         </span>
-        <input
-          id="proof"
-          name="proof"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="sr-only"
-          {...ariaFor("proof", errors.proof)}
-        />
+        <input id="proof" name="proof" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" {...ariaFor("proof", errors.proof)} />
       </label>
       <ProofPreview inputId="proof" />
       <FieldError id="proof" message={errors.proof} />
 
-      <div className="mt-8 flex max-w-xl items-start gap-3">
-        <input
-          id="consent"
-          name="consent"
-          type="checkbox"
-          value="true"
-          className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)"
-          {...ariaFor("consent", errors.consent)}
-        />
-        <Label htmlFor="consent" className="text-sm leading-6 font-normal text-(--fl-ink)">
-          I consent to the collection and processing of my information under the Data Privacy Act
-          of 2012 (RA 10173).
-        </Label>
+      <div className="mt-8 space-y-4">
+        <div className="flex max-w-xl items-start gap-3">
+          <input id="termsConsent" name="termsConsent" type="checkbox" value="true" className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)" {...ariaFor("termsConsent", errors.termsConsent)} />
+          <div>
+            <Label htmlFor="termsConsent" className="text-sm leading-6 font-normal text-(--fl-ink)">I agree to the Terms and Conditions.</Label>
+            <button type="button" className="mt-1 block text-sm text-(--fl-primary) underline-offset-4 hover:underline" onClick={() => setTermsOpen(true)}>View Terms and Conditions</button>
+          </div>
+        </div>
+        <FieldError id="termsConsent" message={errors.termsConsent} />
+
+        <div className="flex max-w-xl items-start gap-3">
+          <input id="privacyConsent" name="privacyConsent" type="checkbox" value="true" className="mt-0.5 size-5 shrink-0 accent-(--fl-primary)" {...ariaFor("privacyConsent", errors.privacyConsent)} />
+          <div>
+            <Label htmlFor="privacyConsent" className="text-sm leading-6 font-normal text-(--fl-ink)">I consent to the collection and processing of my information under the Data Privacy Act of 2012 (RA 10173).</Label>
+            <button type="button" className="mt-1 block text-sm text-(--fl-primary) underline-offset-4 hover:underline" onClick={() => setPrivacyOpen(true)}>View Data Privacy Act notice</button>
+          </div>
+        </div>
+        <FieldError id="privacyConsent" message={errors.privacyConsent} />
       </div>
-      <FieldError id="consent" message={errors.consent} />
 
       {errors.form === undefined ? null : (
-        <div role="alert" className="rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)">
+        <div role="alert" className="mt-6 rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)">
           {errors.form}
         </div>
       )}
 
       <div className="mt-8 flex flex-wrap items-center gap-6">
         <Button type="submit" className="h-12 px-8" disabled={sending}>
-          Submit application
+          {sending ? "Submitting..." : "Submit application"}
         </Button>
         <Link href="/login" className="text-sm text-(--fl-primary) hover:underline">
           Already approved? Login
         </Link>
       </div>
+
+      <TermsAndConditionsDialog open={termsOpen} onOpenChange={setTermsOpen} />
+      <DataPrivacyActDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </form>
   );
 }

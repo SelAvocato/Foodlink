@@ -1,5 +1,10 @@
 import { validateImage } from "@/contracts/image";
-import { PRIVACY_CONSENT_TYPE, PRIVACY_POLICY_VERSION } from "@/contracts/registration";
+import {
+  PRIVACY_CONSENT_TYPE,
+  PRIVACY_POLICY_VERSION,
+  TERMS_CONSENT_TYPE,
+  TERMS_POLICY_VERSION,
+} from "@/contracts/registration";
 import { hashPassword } from "@/lib/password";
 import { safeErrorSummary } from "@/lib/safe-error";
 import type { Storage } from "@/lib/storage";
@@ -111,6 +116,11 @@ export async function registerAccount(
         userId: user.id,
         consentType: PRIVACY_CONSENT_TYPE,
         policyVersion: PRIVACY_POLICY_VERSION,
+      });
+      await tx.insertConsent({
+        userId: user.id,
+        consentType: TERMS_CONSENT_TYPE,
+        policyVersion: TERMS_POLICY_VERSION,
       });
 
       const slash = key.lastIndexOf("/");

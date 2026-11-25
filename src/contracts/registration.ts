@@ -3,9 +3,11 @@ import { stripMarkup } from "@/lib/plain-text";
 import { contactNumber, email, password } from "./auth";
 import { DonorType } from "./enums";
 
-/** Stored in user_consents.consent_type and policy_version. Bump the version when the privacy notice text changes. */
+/** Stored in user_consents.consent_type and policy_version. Bump versions when approved text changes. */
 export const PRIVACY_CONSENT_TYPE = "PRIVACY_POLICY";
 export const PRIVACY_POLICY_VERSION = "1.0";
+export const TERMS_CONSENT_TYPE = "TERMS_AND_CONDITIONS";
+export const TERMS_POLICY_VERSION = "1.0";
 
 const fullName = z.string().overwrite(stripMarkup).min(2, "Enter your full name").max(160, "Name is too long");
 const businessName = z
@@ -13,7 +15,8 @@ const businessName = z
   .overwrite(stripMarkup)
   .min(2, "Enter the business name")
   .max(180, "Business name is too long");
-const consent = z.literal(true, { error: "You must accept the Data Privacy Act consent" });
+const privacyConsent = z.literal(true, { error: "You must accept the Data Privacy Act consent" });
+const termsConsent = z.literal(true, { error: "You must accept the Terms and Conditions" });
 
 /** Form inputs send "" for an empty optional field. Turn it into undefined so the database gets NULL. */
 const optionalText = (max: number) =>
@@ -65,7 +68,8 @@ const donorBase = {
   email,
   address: addressWithPinSchema,
   password,
-  consent,
+  privacyConsent,
+  termsConsent,
 };
 
 /**
@@ -89,6 +93,7 @@ export const volunteerRegistrationSchema = z.strictObject({
   address: addressSchema,
   availability: optionalText(500),
   password,
-  consent,
+  privacyConsent,
+  termsConsent,
 });
 export type VolunteerRegistrationInput = z.infer<typeof volunteerRegistrationSchema>;

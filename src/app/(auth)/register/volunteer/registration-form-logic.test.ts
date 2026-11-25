@@ -25,7 +25,8 @@ function validFormData(patch: Record<string, string | File | null> = {}): FormDa
     city: "Quezon City",
     availability: "Saturdays, 8:00 AM–12:00 PM",
     password: "Volunteer1!",
-    consent: "true",
+    privacyConsent: "true",
+    termsConsent: "true",
     proof: pngFile(),
     ...patch,
   };
@@ -50,7 +51,8 @@ const payload: VolunteerRegistrationPayload = {
   address: { streetLine1: "12 Mabini Street", barangay: "Barangay San Isidro", city: "Quezon City" },
   availability: "Saturdays",
   password: "Volunteer1!",
-  consent: true,
+  privacyConsent: true,
+  termsConsent: true,
 };
 
 describe("validateVolunteerForm", () => {
@@ -75,7 +77,8 @@ describe("validateVolunteerForm", () => {
       },
       availability: "Saturdays, 8:00 AM–12:00 PM",
       password: "Volunteer1!",
-      consent: true,
+      privacyConsent: true,
+  termsConsent: true,
     });
     expect(Object.keys(result.payload.address)).toEqual(["streetLine1", "barangay", "city"]);
     expect(result.payload.address).not.toHaveProperty("latitude");
@@ -94,9 +97,15 @@ describe("validateVolunteerForm", () => {
     expect(errorsFor({ password: "short" }).password).toBe("Use at least 8 characters");
   });
 
-  it("puts an unchecked consent on consent", () => {
-    expect(errorsFor({ consent: null }).consent).toBe(
+  it("puts an unchecked privacy consent on privacyConsent", () => {
+    expect(errorsFor({ privacyConsent: null }).privacyConsent).toBe(
       "You must accept the Data Privacy Act consent",
+    );
+  });
+
+  it("puts an unchecked terms consent on termsConsent", () => {
+    expect(errorsFor({ termsConsent: null }).termsConsent).toBe(
+      "You must accept the Terms and Conditions",
     );
   });
 
@@ -174,7 +183,8 @@ describe("buildRegistrationFormData", () => {
       "address",
       "availability",
       "password",
-      "consent",
+      "privacyConsent",
+      "termsConsent",
       "proof",
     ]);
   });
@@ -200,10 +210,11 @@ describe("buildRegistrationFormData", () => {
     expect(text.get("availability")).toBe("Saturdays");
   });
 
-  it("sends consent as the string true", () => {
+  it("sends consents as the string true", () => {
     const formData = buildRegistrationFormData(payload, pngFile());
 
-    expect(formData.get("consent")).toBe("true");
+    expect(formData.get("privacyConsent")).toBe("true");
+    expect(formData.get("termsConsent")).toBe("true");
   });
 
   it("sends the proof file as is", () => {
@@ -317,3 +328,6 @@ describe("interpretRegistrationResponse", () => {
     expect(outcome).toEqual({ kind: "failed" });
   });
 });
+
+
+

@@ -19,7 +19,8 @@ export type RegistrationFieldKey =
   | "city"
   | "availability"
   | "password"
-  | "consent"
+  | "privacyConsent"
+  | "termsConsent"
   | "proof"
   | "form";
 
@@ -33,7 +34,8 @@ export interface VolunteerRegistrationPayload {
   address: { streetLine1: string; barangay: string | undefined; city: string };
   availability: string | undefined;
   password: string;
-  consent: true;
+  privacyConsent: true;
+  termsConsent: true;
 }
 
 export type VolunteerFormValidation =
@@ -76,7 +78,8 @@ function mapFieldKey(path: readonly PropertyKey[]): RegistrationFieldKey {
     case "email":
     case "availability":
     case "password":
-    case "consent":
+    case "privacyConsent":
+    case "termsConsent":
       return head;
     default:
       return "form";
@@ -99,7 +102,8 @@ export function validateVolunteerForm(formData: FormData): VolunteerFormValidati
     },
     availability: readText(formData, "availability"),
     password: readText(formData, "password"),
-    consent: formData.get("consent") === "true",
+    privacyConsent: formData.get("privacyConsent") === "true",
+    termsConsent: formData.get("termsConsent") === "true",
   });
 
   const errors: RegistrationFormErrors = {};
@@ -130,7 +134,8 @@ export function validateVolunteerForm(formData: FormData): VolunteerFormValidati
       },
       availability: parsed.data.availability,
       password: parsed.data.password,
-      consent: parsed.data.consent,
+      privacyConsent: parsed.data.privacyConsent,
+      termsConsent: parsed.data.termsConsent,
     },
   };
 }
@@ -149,7 +154,8 @@ export function buildRegistrationFormData(
     formData.append("availability", payload.availability);
   }
   formData.append("password", payload.password);
-  formData.append("consent", "true");
+  formData.append("privacyConsent", "true");
+  formData.append("termsConsent", "true");
   formData.append("proof", proof);
   return formData;
 }
@@ -184,30 +190,33 @@ function readFormErrors(body: unknown): string[] {
   if (typeof details !== "object" || details === null) return [];
   const formErrors = (details as { formErrors?: unknown }).formErrors;
   if (!Array.isArray(formErrors)) return [];
-
-  const list: unknown[] = formErrors;
-  return list.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+  return formErrors.filter((item): item is string => typeof item === "string" && item.trim() !== "");
 }
 
-/** Server field names the form can show; the address and anything else is shown above the form. */
+/** Server field names the form can show; nested address keys ("address.city") and anything else go above the form. */
 function mapServerKey(key: string): RegistrationFieldKey {
   switch (key) {
     case "fullName":
     case "contactNumber":
     case "email":
+    case "streetLine1":
+    case "barangay":
+    case "city":
     case "availability":
     case "password":
-    case "consent":
+    case "privacyConsent":
+    case "termsConsent":
+    case "proof":
       return key;
     default:
       return "form";
   }
 }
 
-/**
- * Reads the route's answer. Server messages reach the page only through these fixed
- * mappings, so no server text is rendered as is.
- */
+function hasText(errors: RegistrationFormErrors, key: RegistrationFieldKey): boolean {
+  return typeof errors[key] === "string" && errors[key].trim() !== "";
+}
+
 export function interpretRegistrationResponse(
   status: number,
   body: unknown,
@@ -216,26 +225,19 @@ export function interpretRegistrationResponse(
   if (status === 409) return { kind: "email_taken" };
   if (status !== 400) return { kind: "failed" };
 
-  const errors: RegistrationFormErrors = {};
   const message = readMessage(body);
-  // The route answers a refused proof with its proof message and no field details.
-  if (message !== undefined && message.toLowerCase().includes("proof")) {
-    errors.proof = PROOF_MESSAGE;
-  }
+  if (message === PROOF_MESSAGE) return { kind: "invalid", errors: { proof: PROOF_MESSAGE } };
 
-  // Form-level errors go first so they win the shared "form" line over an unplaced field error.
-  const formErrors = readFormErrors(body);
-  if (formErrors.length > 0) errors.form = formErrors.join(" ");
-
+  const errors: RegistrationFormErrors = {};
   for (const [key, messages] of Object.entries(readFieldErrors(body))) {
     const first = messages[0];
-    if (first === undefined) continue;
+    if (typeof first !== "string" || first.trim() === "") continue;
     const target = mapServerKey(key);
-    if (errors[target] === undefined) errors[target] = first;
+    if (!hasText(errors, target)) errors[target] = first;
   }
+  const formErrors = readFormErrors(body);
+  if (formErrors.length > 0) errors.form = formErrors.join(" ");
+  if (Object.keys(errors).length > 0) return { kind: "invalid", errors };
 
-  // A 400 the form cannot place in any field would otherwise show nothing at all.
-  if (Object.keys(errors).length === 0) return { kind: "failed" };
-
-  return { kind: "invalid", errors };
+  return { kind: "failed" };
 }

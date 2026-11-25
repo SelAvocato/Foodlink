@@ -4,6 +4,8 @@ import {
   donorRegistrationSchema,
   PRIVACY_CONSENT_TYPE,
   PRIVACY_POLICY_VERSION,
+  TERMS_CONSENT_TYPE,
+  TERMS_POLICY_VERSION,
   type DonorRegistrationInput,
 } from "@/contracts/registration";
 import { verifyPassword } from "@/lib/password";
@@ -138,7 +140,8 @@ function establishmentInput(): DonorRegistrationInput {
     email: "donor@example.com",
     address,
     password,
-    consent: true,
+    privacyConsent: true,
+    termsConsent: true,
   });
 }
 
@@ -150,7 +153,8 @@ function individualInput(): DonorRegistrationInput {
     email: "donor@example.com",
     address,
     password,
-    consent: true,
+    privacyConsent: true,
+    termsConsent: true,
   });
 }
 
@@ -188,12 +192,11 @@ describe("registerDonor", () => {
     expect(result.userId).toBe(store.users[0]?.id);
     expect(store.credentials).toHaveLength(1);
     expect(store.credentials[0]?.userId).toBe(result.userId);
-    expect(store.consents).toHaveLength(1);
-    expect(store.consents[0]).toMatchObject({
-      userId: result.userId,
-      consentType: PRIVACY_CONSENT_TYPE,
-      policyVersion: PRIVACY_POLICY_VERSION,
-    });
+    expect(store.consents).toHaveLength(2);
+    expect(store.consents).toEqual(expect.arrayContaining([
+      { userId: result.userId, consentType: PRIVACY_CONSENT_TYPE, policyVersion: PRIVACY_POLICY_VERSION },
+      { userId: result.userId, consentType: TERMS_CONSENT_TYPE, policyVersion: TERMS_POLICY_VERSION },
+    ]));
     expect(store.documents).toHaveLength(1);
     expect(store.documents[0]).toMatchObject({
       userId: result.userId,
@@ -349,3 +352,8 @@ describe("registerDonor", () => {
     expect(files.size).toBe(0);
   });
 });
+
+
+
+
+

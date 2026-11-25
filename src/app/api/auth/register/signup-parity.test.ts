@@ -26,7 +26,8 @@ function signupForm(kind: "donor" | "volunteer"): FormData {
   fd.set("email", `${kind}@example.com`);
   fd.set("address", addressJson);
   fd.set("password", "Abcdef1!");
-  fd.set("consent", "true");
+  fd.set("privacyConsent", "true");
+  fd.set("termsConsent", "true");
   fd.set("proof", new File([proofBytes], "proof.jpg", { type: "image/jpeg" }));
   return fd;
 }
