@@ -36,7 +36,7 @@ export function CommandCenterView() {
   }, [retry]);
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Command center"
         description="Priorities, counts, and recent activity across the admin workflow."
@@ -118,6 +118,6 @@ export function CommandCenterView() {
           </div>
         </>
       ) : null}
-    </main>
+    </div>
   );
 }
