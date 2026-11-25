@@ -170,19 +170,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="bg-primary py-14 text-primary-foreground lg:py-16" aria-labelledby="closing-h">
-        <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-5 md:flex-row md:items-center md:justify-between lg:px-8">
-          <div className="max-w-2xl">
-            <h2 id="closing-h" className="text-balance text-2xl font-semibold leading-tight sm:text-[30px] sm:leading-[1.3]">Want to be part of the recovery journey?</h2>
-            <p className="mt-3 text-pretty text-sm leading-5 text-primary-foreground/90">Join as a donor or volunteer to help surplus food reach the community through clear, accountable handovers.</p>
-            <p className="mt-2 text-xs leading-[18px] text-primary-foreground/80">Applications are reviewed before you can log in.</p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-3">
-            <Link href={publicLinks.donor} className={btnOnDark}>Join as donor</Link>
-            <Link href={publicLinks.volunteer} className={btnOnDarkOutline}>Volunteer with us</Link>
-          </div>
-        </div>
-      </section>
     </PublicPageShell>
   );
 }
