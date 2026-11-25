@@ -9,7 +9,7 @@ import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatCard } from "@/components/shared/stat-card";
-import { Table, TableBody, TableCell, TableCellStrong, TableHead, TableHeader, TableRow } from "@/components/shared/data-table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shared/data-table";
 import type { AdminDashboardResponse } from "@/contracts/admin-dashboard";
 import { ACTIVITY_TYPE_LABEL, DASHBOARD_ERROR, countCards, formatActivityTime, loadDashboard } from "./command-center-logic";
 
@@ -88,7 +88,7 @@ export function CommandCenterView() {
                       <TableRow key={item.id}>
                         <TableCell>{ACTIVITY_TYPE_LABEL[item.type]}</TableCell>
                         <TableCell>
-                          <TableCellStrong>{item.title}</TableCellStrong>
+                          <p className="font-medium text-foreground">{item.title}</p>
                           <p className="mt-1 text-muted-foreground">{item.detail}</p>
                         </TableCell>
                         <TableCell><span className="tabular-nums">{formatActivityTime(item.occurredAt)}</span></TableCell>
