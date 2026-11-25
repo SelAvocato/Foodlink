@@ -3,6 +3,8 @@ import { MAX_IMAGE_BYTES } from "@/contracts/image";
 import {
   PRIVACY_CONSENT_TYPE,
   PRIVACY_POLICY_VERSION,
+  TERMS_CONSENT_TYPE,
+  TERMS_POLICY_VERSION,
   volunteerRegistrationSchema,
   type VolunteerRegistrationInput,
 } from "@/contracts/registration";
@@ -138,7 +140,8 @@ function volunteerInput(overrides: Record<string, unknown> = {}): VolunteerRegis
     email: "volunteer@example.com",
     address: addressWithoutPin,
     password,
-    consent: true,
+    privacyConsent: true,
+    termsConsent: true,
     ...overrides,
   });
 }
@@ -247,12 +250,11 @@ describe("registerVolunteer", () => {
     const result = await registerVolunteer(deps, volunteerInput(), jpegProof);
     if (!result.ok) throw new Error(`expected success, got ${result.error}`);
 
-    expect(store.consents).toHaveLength(1);
-    expect(store.consents[0]).toMatchObject({
-      userId: result.userId,
-      consentType: PRIVACY_CONSENT_TYPE,
-      policyVersion: PRIVACY_POLICY_VERSION,
-    });
+    expect(store.consents).toHaveLength(2);
+    expect(store.consents).toEqual(expect.arrayContaining([
+      { userId: result.userId, consentType: PRIVACY_CONSENT_TYPE, policyVersion: PRIVACY_POLICY_VERSION },
+      { userId: result.userId, consentType: TERMS_CONSENT_TYPE, policyVersion: TERMS_POLICY_VERSION },
+    ]));
   });
 
   it("returns INVALID_PROOF for wrong type bytes, an empty file or 5 MB + 1 byte", async () => {
@@ -341,3 +343,8 @@ describe("registerVolunteer", () => {
     }
   });
 });
+
+
+
+
+

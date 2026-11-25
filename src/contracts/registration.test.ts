@@ -14,7 +14,8 @@ const base = {
   email: " Juan@Example.PH ",
   address,
   password: "Abcdef1!",
-  consent: true,
+  privacyConsent: true,
+  termsConsent: true,
 };
 const withoutPin: Record<string, unknown> = { ...address };
 delete withoutPin.latitude;
@@ -43,11 +44,15 @@ describe("donorRegistrationSchema", () => {
   it("rejects an unknown donor type", () => {
     expect(donorRegistrationSchema.safeParse({ ...individual, donorType: "RECEIVER" }).success).toBe(false);
   });
-  it("requires the privacy consent to be true", () => {
-    expect(donorRegistrationSchema.safeParse({ ...individual, consent: false }).success).toBe(false);
-    const body: Record<string, unknown> = { ...individual };
-    delete body.consent;
-    expect(donorRegistrationSchema.safeParse(body).success).toBe(false);
+  it("requires the privacy and terms consent to be true", () => {
+    expect(donorRegistrationSchema.safeParse({ ...individual, privacyConsent: false }).success).toBe(false);
+    expect(donorRegistrationSchema.safeParse({ ...individual, termsConsent: false }).success).toBe(false);
+    const missingPrivacy: Record<string, unknown> = { ...individual };
+    delete missingPrivacy.privacyConsent;
+    expect(donorRegistrationSchema.safeParse(missingPrivacy).success).toBe(false);
+    const missingTerms: Record<string, unknown> = { ...individual };
+    delete missingTerms.termsConsent;
+    expect(donorRegistrationSchema.safeParse(missingTerms).success).toBe(false);
   });
   it("rejects unknown fields such as role or status", () => {
     expect(donorRegistrationSchema.safeParse({ ...individual, role: "ADMIN" }).success).toBe(false);
@@ -178,7 +183,7 @@ describe("volunteerRegistrationSchema", () => {
     delete body.address;
     expect(volunteerRegistrationSchema.safeParse(body).success).toBe(false);
   });
-  it("requires the privacy consent to be true", () => {
+  it("requires the privacy and terms consent to be true", () => {
     expect(volunteerRegistrationSchema.safeParse({ ...volunteer, consent: false }).success).toBe(false);
   });
   it("rejects donor fields and other unknown fields", () => {
@@ -191,3 +196,6 @@ describe("volunteerRegistrationSchema", () => {
     expect(volunteerRegistrationSchema.safeParse({ ...volunteer, availability: "x".repeat(501) }).success).toBe(false);
   });
 });
+
+
+

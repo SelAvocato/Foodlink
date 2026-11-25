@@ -28,7 +28,8 @@ function donorForm(overrides: Record<string, string | File | null> = {}): FormDa
   fd.set("email", "donor@example.com");
   fd.set("address", addressJson);
   fd.set("password", "Abcdef1!");
-  fd.set("consent", "true");
+  fd.set("privacyConsent", "true");
+  fd.set("termsConsent", "true");
   fd.set("proof", proofFile());
   for (const [key, value] of Object.entries(overrides)) {
     if (value === null) fd.delete(key);
@@ -104,14 +105,14 @@ describe("POST /api/auth/register/donor", () => {
     expect(registerDonor).not.toHaveBeenCalled();
   });
 
-  it("returns field errors for a schema failure such as a missing consent", async () => {
-    const res = await post(donorForm({ consent: "false" }));
+  it("returns field errors for a schema failure such as missing consents", async () => {
+    const res = await post(donorForm({ privacyConsent: "false", termsConsent: "false" }));
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBe("INVALID_REQUEST");
     expect(body.message).toBe("Some registration fields are invalid.");
-    expect(Array.isArray(body.details.fieldErrors.consent)).toBe(true);
-    expect(body.details.fieldErrors.consent.length).toBeGreaterThan(0);
+    expect(Array.isArray(body.details.fieldErrors.privacyConsent)).toBe(true);
+    expect(Array.isArray(body.details.fieldErrors.termsConsent)).toBe(true);
     expect(registerDonor).not.toHaveBeenCalled();
   });
 
@@ -146,7 +147,8 @@ describe("POST /api/auth/register/donor", () => {
       donorType: "INDIVIDUAL",
       fullName: "Test Donor Person",
       email: "donor@example.com",
-      consent: true,
+      privacyConsent: true,
+      termsConsent: true,
       address: expect.objectContaining({ city: "Quezon City", latitude: 14.676, longitude: 121.0437 }),
     });
     expect(bytes).toEqual(new Uint8Array(proofBytes));
@@ -199,3 +201,6 @@ describe("POST /api/auth/register/donor", () => {
     expect(registerDonor).not.toHaveBeenCalled();
   });
 });
+
+
+

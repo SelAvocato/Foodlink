@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_IMAGE_BYTES } from "@/contracts/image";
 import { volunteerRegistrationSchema } from "@/contracts/registration";
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
         address,
         ...(typeof availability === "string" ? { availability } : {}),
         password: form.get("password"),
-        consent: form.get("consent") === "true",
+        privacyConsent: form.get("privacyConsent") === "true",
+        termsConsent: form.get("termsConsent") === "true",
     });
 
     if (!parsed.success) {
@@ -75,3 +76,7 @@ export async function POST(request: Request) {
         { status: 201 },
     );
 }
+
+
+
+

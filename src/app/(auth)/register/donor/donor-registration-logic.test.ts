@@ -30,7 +30,8 @@ function validFormData(patch: Record<string, string | File | null> = {}): FormDa
     barangay: "Barangay Test",
     city: "Quezon City",
     password: "TestDonor1!",
-    consent: "true",
+    privacyConsent: "true",
+    termsConsent: "true",
     proof: pngFile(),
     ...patch,
   };
@@ -62,7 +63,8 @@ const payload: DonorRegistrationPayload = {
     longitude: PIN.longitude,
   },
   password: "TestDonor1!",
-  consent: true,
+  privacyConsent: true,
+  termsConsent: true,
 };
 
 describe("validateDonorForm", () => {
@@ -123,9 +125,15 @@ describe("validateDonorForm", () => {
     expect(errorsFor({ password: "short" }).password).toBe("Use at least 8 characters");
   });
 
-  it("refuses an unticked consent", () => {
-    expect(errorsFor({ consent: null }).consent).toBe(
+  it("refuses an unticked privacy consent", () => {
+    expect(errorsFor({ privacyConsent: null }).privacyConsent).toBe(
       "You must accept the Data Privacy Act consent",
+    );
+  });
+
+  it("refuses an unticked terms consent", () => {
+    expect(errorsFor({ termsConsent: null }).termsConsent).toBe(
+      "You must accept the Terms and Conditions",
     );
   });
 
@@ -189,7 +197,8 @@ describe("buildRegistrationFormData", () => {
       "email",
       "address",
       "password",
-      "consent",
+      "privacyConsent",
+      "termsConsent",
       "proof",
     ]);
   });
@@ -215,10 +224,11 @@ describe("buildRegistrationFormData", () => {
     });
   });
 
-  it("sends consent as the string true", () => {
+  it("sends consents as the string true", () => {
     const formData = buildRegistrationFormData(payload, pngFile());
 
-    expect(formData.get("consent")).toBe("true");
+    expect(formData.get("privacyConsent")).toBe("true");
+    expect(formData.get("termsConsent")).toBe("true");
   });
 
   it("sends the proof file as is", () => {
@@ -319,3 +329,9 @@ describe("interpretDonorRegistrationResponse", () => {
     });
   });
 });
+
+
+
+
+
+
