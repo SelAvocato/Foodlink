@@ -143,6 +143,9 @@ export async function authenticateLogin(
         if (!validPassword) {
             const failedAttempt = user.user_credentials.failed_login_count + 1;
             const lockoutSeconds = lockoutDurationSeconds(failedAttempt);
+            const lockedUntil = lockoutSeconds
+                ? new Date(Date.now() + lockoutSeconds * 1_000)
+                : null;
             const updated = await prisma.user_credentials.updateMany({
                 where: {
                     user_id: user.id,
@@ -150,14 +153,17 @@ export async function authenticateLogin(
                 },
                 data: {
                     failed_login_count: { increment: 1 },
-                    locked_until: lockoutSeconds
-                        ? new Date(Date.now() + lockoutSeconds * 1_000)
-                        : null,
+                    locked_until: lockedUntil,
                 },
             });
 
             if (updated.count !== 1) {
                 throw new LoginError("database_error");
+            }
+
+            if (lockedUntil) {
+                await logLoginFailure("account_locked", clientIp(headers), user.id);
+                throw new LoginError("account_locked", `account_locked:${lockedUntil.toISOString()}`);
             }
 
             await logLoginFailure("invalid_password", clientIp(headers), user.id);

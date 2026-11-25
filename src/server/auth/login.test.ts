@@ -10,10 +10,12 @@ vi.mock("@/server/db", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/env.server", () => ({ getEnv: () => ({ AUTH_SECRET: "test-secret" }) }));
 vi.mock("@node-rs/argon2", () => ({ verify: vi.fn() }));
 
+import { verify } from "@node-rs/argon2";
 import { authenticateLogin, lockoutDurationSeconds } from "./login";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("authenticateLogin database failure logging", () => {
@@ -64,6 +66,56 @@ describe("authenticateLogin account lockout", () => {
       category: "account_locked",
       message: `account_locked:${lockedUntil.toISOString()}`,
     });
+  });
+
+  it("throws account_locked on the 5th failed attempt and stores lockout", async () => {
+    const now = new Date("2026-11-25T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    prismaMock.users.findFirst.mockResolvedValue({
+      id: "user-1",
+      email: "active@example.test",
+      full_name: "Active User",
+      role: "DONOR",
+      status: "ACTIVE",
+      user_credentials: {
+        password_hash: "hashed-password",
+        failed_login_count: 4,
+        locked_until: null,
+      },
+    });
+    vi.mocked(verify).mockResolvedValue(false);
+    prismaMock.user_credentials = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
+    prismaMock.audit_logs.create.mockResolvedValue({});
+
+    const expectedLockedUntil = new Date(now.getTime() + 30_000).toISOString();
+
+    await expect(
+      authenticateLogin({ email: "active@example.test", password: "wrong-password" }),
+    ).rejects.toMatchObject({
+      category: "account_locked",
+      message: `account_locked:${expectedLockedUntil}`,
+    });
+
+    expect(prismaMock.user_credentials.updateMany).toHaveBeenCalledWith({
+      where: {
+        user_id: "user-1",
+        failed_login_count: 4,
+      },
+      data: {
+        failed_login_count: { increment: 1 },
+        locked_until: new Date(expectedLockedUntil),
+      },
+    });
+    expect(prismaMock.audit_logs.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "AUTH_LOGIN_FAILURE",
+          details: expect.objectContaining({ category: "account_locked" }),
+        }),
+      }),
+    );
   });
 });
 
