@@ -14,6 +14,7 @@ export function FormField({
   labelAction,
   hint,
   error,
+  action,
   className,
   children,
 }: {
@@ -22,6 +23,8 @@ export function FormField({
   labelAction?: ReactNode;
   hint?: string;
   error?: string;
+  /** Rendered below the control, aligned to the right. */
+  action?: ReactNode;
   className?: string;
   children: (props: ControlProps) => ReactNode;
 }) {
@@ -38,6 +41,7 @@ export function FormField({
         {labelAction ? <div className="text-xs font-medium leading-[18px]">{labelAction}</div> : null}
       </div>
       {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
+      {action ? <div className="flex justify-end">{action}</div> : null}
       {hint ? (
         <p id={hintId} className="text-xs leading-[18px] text-muted-foreground">
           {hint}
