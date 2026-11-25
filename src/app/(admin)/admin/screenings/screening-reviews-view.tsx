@@ -236,7 +236,7 @@ export function ScreeningReviewsView() {
   }
 
   return (
-    <main className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
+    <div className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
         <header className="flex flex-col gap-2">
           <p className="text-xs font-semibold tracking-wide text-(--fl-primary)">
@@ -449,6 +449,8 @@ export function ScreeningReviewsView() {
           </DialogContent>
         </Dialog>
       </div>
-    </main>
+    </div>
   );
 }
+
+
