@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
   users: { findFirst: vi.fn() },
+  user_credentials: { updateMany: vi.fn() },
   audit_logs: { create: vi.fn() },
 }));
 
@@ -86,7 +87,7 @@ describe("authenticateLogin account lockout", () => {
       },
     });
     vi.mocked(verify).mockResolvedValue(false);
-    prismaMock.user_credentials = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
+    prismaMock.user_credentials.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.audit_logs.create.mockResolvedValue({});
 
     const expectedLockedUntil = new Date(now.getTime() + 30_000).toISOString();
