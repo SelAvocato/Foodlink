@@ -88,7 +88,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             type="date"
             value={form.date}
             onChange={(event) => onDateChange(event.target.value)}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.date ? <p className={ERROR_TEXT}>{errors.date}</p> : null}
         </div>
@@ -101,7 +101,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             type="text"
             value={form.place}
             onChange={onPlaceChange}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.place ? <p className={ERROR_TEXT}>{errors.place}</p> : null}
         </div>
@@ -113,7 +113,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
           <select
             value={form.groupServed}
             onChange={(event) => onGroupChange(event.target.value as GroupServed)}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {GROUP_SERVED_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -131,7 +131,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             type="text"
             value={form.peopleServed}
             onChange={(event) => onPeopleChange(event.target.value)}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.peopleServed ? <p className={ERROR_TEXT}>{errors.peopleServed}</p> : null}
         </div>
@@ -144,7 +144,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             type="text"
             value={form.portionsDistributed}
             onChange={(event) => onPortionsChange(event.target.value)}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.portionsDistributed ? (
             <p className={ERROR_TEXT}>{errors.portionsDistributed}</p>
@@ -159,7 +159,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             type="text"
             value={form.portionsUnusable}
             onChange={(event) => onUnusableChange(event.target.value)}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.portionsUnusable ? (
             <p className={ERROR_TEXT}>{errors.portionsUnusable}</p>
@@ -177,7 +177,7 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
             value={form.unusableReason}
             disabled={reasonDisabled}
             onChange={(event) => onReasonChange(event.target.value as UnusableReason | "")}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">Select a reason</option>
             {UNUSABLE_REASON_OPTIONS.map((option) => (
@@ -198,13 +198,19 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
           <textarea
             value={form.notes}
             onChange={onNotesChange}
-            className="block w-full rounded-sm border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-full rounded-xl border border-[#DCE4DE] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {errors.notes ? <p className={ERROR_TEXT}>{errors.notes}</p> : null}
         </div>
 
-        {/* TODO: Add photo (optional) — no photo endpoint exists yet. */}
-        <p className="mt-4 text-sm text-[#63746D]">
+        <button
+          type="button"
+          className={`${BUTTON_BASE.replace("rounded-sm", "rounded-xl")} mt-4 w-full border border-[#DCE4DE] bg-white text-[#176448] enabled:hover:bg-[#EAF4EE]`}
+        >
+          Add photo (optional)
+        </button>
+
+        <p className="mt-4 rounded-xl bg-[#EAF4EE]/60 p-4 text-sm text-[#63746D]">
           Do not include beneficiary names, home addresses, or identifiable faces.
         </p>
 

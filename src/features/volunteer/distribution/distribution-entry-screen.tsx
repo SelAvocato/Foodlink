@@ -262,7 +262,7 @@ export function DistributionEntryScreen({
         if (run !== submitRun.current) return;
 
         if (response.status === 200 || response.status === 201) {
-          void router.replace(`/volunteer/donations/${encodeURIComponent(donationId)}`);
+          void router.replace(`/tasks/${encodeURIComponent(donationId)}/distribution`);
           return;
         }
 
@@ -322,8 +322,7 @@ form,
   );
 
   const onCancel = useCallback(() => {
-    // TODO-SWAP: redirect to the p51 route once it exists.
-    void router.replace(`/volunteer/donations/${encodeURIComponent(donationId)}`);
+    void router.replace(`/tasks/${encodeURIComponent(donationId)}/distribution`);
   }, [router, donationId]);
 
   const subtitle =
