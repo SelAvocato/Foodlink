@@ -55,7 +55,7 @@ export default function FoodSafetyPage() {
               </div>
               <h3 id="never-accepted-h" className="text-xl font-semibold leading-7 text-red-900">Never accepted</h3>
               <p className="mt-3 text-sm leading-5 text-red-950 text-pretty">
-                Opened or partially eaten food, plate leftovers, and items past expiry.
+                Opened or partially eaten food, plate leftovers, items past expiry, and sealed packaged food or beverages with 5 months or less left before expiry.
               </p>
             </section>
           </div>
