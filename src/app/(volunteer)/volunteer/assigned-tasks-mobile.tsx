@@ -71,14 +71,6 @@ export function AssignedTasksMobile({
                   <Link href={row.viewTaskHref}>{row.action}</Link>
                 </Button>
               ) : null}
-
-              {item.status === "DELIVERED" ? (
-                <Button asChild className={CARD_BUTTON}>
-                  <Link href={`/tasks/${item.donationId}/distribution`}>
-                    Record distribution
-                  </Link>
-                </Button>
-              ) : null}
             </li>
           );
         })}
