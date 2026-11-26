@@ -18,6 +18,7 @@ const NEVER_ACCEPTED_ITEMS = [
   "Opened or partially eaten food",
   "Leftovers from a customer’s plate",
   "Anything past its expiry date",
+  "Sealed packaged food or beverages with 5 months or less left before expiry",
 ];
 
 const cardClass = "rounded-2xl p-6 sm:p-8";
