@@ -23,7 +23,7 @@ describe("distribution entry schema", () => {
       unusableReason: "damaged",
       notes: "Packaging torn",
     });
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   test("create: unusable > 0 requires reason", () => {
@@ -35,7 +35,7 @@ describe("distribution entry schema", () => {
       portionsDistributed: 40,
       portionsUnusable: 5,
     });
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.error?.flatten().fieldErrors.unusableReason).toContain(
       "Choose why the portions were unusable",
     );
@@ -51,7 +51,7 @@ describe("distribution entry schema", () => {
       portionsUnusable: 0,
       unusableReason: "damaged",
     });
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.error?.flatten().fieldErrors.unusableReason).toContain(
       "Only add an unusable reason when portions are unusable",
     );
@@ -67,7 +67,7 @@ describe("distribution entry schema", () => {
       portionsUnusable: 5,
       unusableReason: "other",
     });
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.error?.flatten().fieldErrors.notes).toContain(
       "Describe what happened when the unusable reason is other",
     );
@@ -82,7 +82,7 @@ describe("distribution entry schema", () => {
       portionsDistributed: 1,
       portionsUnusable: 0,
     });
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.error?.flatten().fieldErrors.peopleServed).toContain(
       "People served must be at least 1",
     );
@@ -96,19 +96,19 @@ describe("distribution entry schema", () => {
       peopleServed: 30,
       portionsDistributed: 40,
     });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.portionsUnusable).toBe(0);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.portionsUnusable).toBe(0);
   });
 
   test("update: partial with one field passes", () => {
     const result = updateDistributionEntryInputSchema.safeParse({
       place: "Covered Court",
     });
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   test("update: empty body is rejected", () => {
     const result = updateDistributionEntryInputSchema.safeParse({});
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 });

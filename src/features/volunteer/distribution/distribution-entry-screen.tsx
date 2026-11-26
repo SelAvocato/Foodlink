@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useRouter } from "next/navigation";
+import type { GroupServed, UnusableReason } from "@/contracts/volunteer-distribution";
 import { DistributionEntryView } from "./distribution-entry-view";
 import {
   createDistributionEntryInputSchema,
@@ -9,18 +17,48 @@ import {
   type UpdateDistributionEntryInput,
   updateDistributionEntryInputSchema,
 } from "./schema";
-import { mockGetDistributionEntries, type DistributionEntriesResponse } from "@/mocks/distribution";
 
 type Mode = "create" | "edit";
+
+type DistributionSummary = {
+  id: string;
+  referenceCode: string;
+  status: string;
+  totalQuantity: number;
+  unit: string;
+  distributedQuantity: number;
+  unusableQuantity: number;
+  remainingQuantity: number;
+  entryCount: number;
+  canAddEntry: boolean;
+  canComplete: boolean;
+};
+
+type DistributionEntryView = {
+  id: string;
+  date: string;
+  place: string;
+  groupServed: string;
+  peopleServed: number;
+  portionsDistributed: number;
+  portionsUnusable: number;
+  unusableReason: string | null;
+  notes: string | null;
+};
+
+type DistributionEntriesResponse = {
+  summary: DistributionSummary;
+  entries: DistributionEntryView[];
+};
 
 type FormState = {
   date: string;
   place: string;
-  groupServed: string;
+  groupServed: GroupServed;
   peopleServed: string;
   portionsDistributed: string;
   portionsUnusable: string;
-  unusableReason: string;
+  unusableReason: UnusableReason | "";
   notes: string;
 };
 
@@ -57,7 +95,7 @@ function submissionFromForm(form: FormState): Record<string, unknown> {
   };
 }
 
-function pathToKey(path: (string | number)[]): string | null {
+function pathToKey(path: readonly PropertyKey[]): string | null {
   if (path.length === 0) return null;
   return String(path[0]);
 }
@@ -83,8 +121,9 @@ export function DistributionEntryScreen({
     portionsUnusable: number;
   } | null>(null);
   const loadRun = useRef(0);
+  const submitRun = useRef(0);
 
-  const basePath = `/api/volunteer/donations/${encodeURIComponent(donationId)}/distribution-entries`;
+  const basePath = `/api/donations/${encodeURIComponent(donationId)}/distribution-entries`;
   const requestPath =
     mode === "create" ? basePath : `${basePath}/${encodeURIComponent(entryId ?? "")}`;
 
@@ -92,38 +131,55 @@ export function DistributionEntryScreen({
     loadRun.current += 1;
     const mine = loadRun.current;
 
-    void mockGetDistributionEntries(donationId).then((response) => {
-      if (loadRun.current !== mine) return;
-      setSummary(response.summary);
-
-      if (mode === "edit" && entryId !== undefined) {
-        const found = response.entries.find((entry) => entry.id === entryId);
-        if (found === undefined) {
-          router.push("/volunteer");
+    void fetch(basePath, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+      .then(async (response) => {
+        if (loadRun.current !== mine) return;
+        if (!response.ok) {
+          if (response.status === 404) {
+            void router.push("/volunteer");
+          } else if (response.status === 401) {
+            void router.push("/login");
+          }
           return;
         }
-        setEditingEntry({
-          peopleServed: found.peopleServed,
-          portionsDistributed: found.portionsDistributed,
-          portionsUnusable: found.portionsUnusable,
-        });
-        setForm({
-          date: found.date,
-          place: found.place,
-          groupServed: found.groupServed,
-          peopleServed: String(found.peopleServed),
-          portionsDistributed: String(found.portionsDistributed),
-          portionsUnusable: String(found.portionsUnusable),
-          unusableReason: found.unusableReason ?? "",
-          notes: found.notes ?? "",
-        });
-      }
-    });
-  }, [donationId, entryId, mode, router]);
+        const body = (await response.json().catch(() => null)) as
+          | DistributionEntriesResponse
+          | null;
+        if (body === null) return;
+        setSummary(body.summary);
+
+        if (mode === "edit" && entryId !== undefined) {
+          const found = body.entries.find((entry) => entry.id === entryId);
+          if (found === undefined) {
+            void router.push("/volunteer");
+            return;
+          }
+          setEditingEntry({
+            peopleServed: found.peopleServed,
+            portionsDistributed: found.portionsDistributed,
+            portionsUnusable: found.portionsUnusable,
+          });
+          setForm({
+            date: found.date,
+            place: found.place,
+            groupServed: found.groupServed as GroupServed,
+            peopleServed: String(found.peopleServed),
+            portionsDistributed: String(found.portionsDistributed),
+            portionsUnusable: String(found.portionsUnusable),
+            unusableReason: (found.unusableReason ?? "") as UnusableReason | "",
+            notes: found.notes ?? "",
+          });
+        }
+      })
+      .catch(() => {
+        if (loadRun.current !== mine) return;
+        setBanner("Couldn't save changes. Your entries are preserved. Try again.");
+      });
+  }, [basePath, donationId, entryId, mode, router]);
 
   const setField = useCallback(
     (key: keyof FormState, value: string) => {
-      setForm((current) => ({ ...current, [key]: value }));
+      setForm((current) => ({ ...current, [key]: value }) as FormState);
       if (errors[key] !== undefined) {
         setErrors((current) => {
           const next = { ...current };
@@ -137,10 +193,13 @@ export function DistributionEntryScreen({
 
   const onDateChange = useCallback((value: string) => setField("date", value), [setField]);
   const onPlaceChange = useCallback(
-    (event) => setField("place", event.target.value),
+    (event: ChangeEvent<HTMLInputElement>) => setField("place", event.target.value),
     [setField],
   );
-  const onGroupChange = useCallback((value: string) => setField("groupServed", value), [setField]);
+  const onGroupChange = useCallback(
+    (value: GroupServed) => setField("groupServed", value),
+    [setField],
+  );
   const onPeopleChange = useCallback(
     (value: string) => setField("peopleServed", value),
     [setField],
@@ -153,16 +212,17 @@ export function DistributionEntryScreen({
     (value: string) => setField("portionsUnusable", value),
     [setField],
   );
-  const onReasonChange = useCallback((value: string) => setField("unusableReason", value), [
-    setField,
-  ]);
+  const onReasonChange = useCallback(
+    (value: UnusableReason | "") => setField("unusableReason", value),
+    [setField],
+  );
   const onNotesChange = useCallback(
-    (event) => setField("notes", event.target.value),
+    (event: ChangeEvent<HTMLTextAreaElement>) => setField("notes", event.target.value),
     [setField],
   );
 
   const validateAndSubmit = useCallback(
-    async (event) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setErrors(emptyErrors());
       setBanner(null);
@@ -173,7 +233,7 @@ export function DistributionEntryScreen({
           : updateDistributionEntryInputSchema;
       const parsed = schema.safeParse(submissionFromForm(form));
 
-      if (!parsed.ok) {
+      if (!parsed.success) {
         for (const issue of parsed.error.issues) {
           const key = pathToKey(issue.path);
           if (key === null) {
@@ -186,9 +246,10 @@ export function DistributionEntryScreen({
       }
 
       setIsSubmitting(true);
-      const run = ++runRef.current;
+      const run = ++submitRun.current;
 
-      const body = mode === "create" ? parsed.data : (parsed.data as UpdateDistributionEntryInput);
+      const body =
+        mode === "create" ? parsed.data : (parsed.data as UpdateDistributionEntryInput);
       try {
         const response = await fetch(requestPath, {
           method: mode === "create" ? "POST" : "PATCH",
@@ -198,7 +259,7 @@ export function DistributionEntryScreen({
           signal: AbortSignal.timeout(10_000),
         });
 
-        if (run !== runRef.current) return;
+        if (run !== submitRun.current) return;
 
         if (response.status === 200 || response.status === 201) {
           void router.replace(`/volunteer/donations/${encodeURIComponent(donationId)}`);
@@ -244,24 +305,24 @@ export function DistributionEntryScreen({
         );
         setIsSubmitting(false);
       } catch {
-        if (run !== runRef.current) return;
+        if (run !== submitRun.current) return;
         setBanner("Couldn't save changes. Your entries are preserved. Try again.");
         setIsSubmitting(false);
       }
     },
     [
       requestPath,
-      entryId,
-      form,
-      mode,
-      editingEntry,
-      summary,
-      router,
+form,
+  mode,
+  editingEntry,
+  summary,
+  router,
       donationId,
     ],
   );
 
   const onCancel = useCallback(() => {
+    // TODO-SWAP: redirect to the p51 route once it exists.
     void router.replace(`/volunteer/donations/${encodeURIComponent(donationId)}`);
   }, [router, donationId]);
 
@@ -274,7 +335,6 @@ export function DistributionEntryScreen({
     <DistributionEntryView
       title={mode === "create" ? "Add distribution entry" : "Edit distribution entry"}
       subtitle={subtitle}
-      mode={mode}
       form={form}
       errors={errors}
       banner={banner}
@@ -291,9 +351,4 @@ export function DistributionEntryScreen({
       onNotesChange={onNotesChange}
     />
   );
-}
-
-function apiPathUnused(_path: string): void {
-  // placeholder to keep requestPath in the deps array meaningfully
-  return;
 }

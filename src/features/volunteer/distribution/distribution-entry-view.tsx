@@ -29,12 +29,11 @@ type FieldErrors = Partial<Record<keyof DistributionEntryForm, string>>;
 type DistributionEntryViewProps = {
   title: string;
   subtitle: string;
-  mode: "create" | "edit";
   form: DistributionEntryForm;
   errors: FieldErrors;
   banner: string | null;
   isSubmitting: boolean;
-  onSave: (event: FormEvent) => void;
+  onSave: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   onDateChange: (value: string) => void;
   onPlaceChange: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -50,7 +49,6 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
   const {
     title,
     subtitle,
-    mode,
     form,
     errors,
     banner,
@@ -170,8 +168,11 @@ export function DistributionEntryView(props: DistributionEntryViewProps) {
 
         <div>
           <label className="block text-sm font-semibold text-foreground">
-            Unusable reason · Required when > 0
+            Unusable reason
           </label>
+          <p className="mt-1 text-sm text-foreground">
+            Required when &gt; 0
+          </p>
           <select
             value={form.unusableReason}
             disabled={reasonDisabled}
