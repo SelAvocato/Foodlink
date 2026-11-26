@@ -71,21 +71,6 @@ export function AssignedTasksMobile({
                   <Link href={row.viewTaskHref}>{row.action}</Link>
                 </Button>
               ) : null}
-
-              {item.status === "DELIVERED" ? (
-                <>
-                  {/* KNOWN LIMIT: the Figma shows "20 of 30 portions accounted for"; the
-                      list has no distribution data, so the line is left out. */}
-                  <Button
-                    variant="outline"
-                    disabled
-                    aria-disabled="true"
-                    className={CARD_BUTTON}
-                  >
-                    Record distribution
-                  </Button>
-                </>
-              ) : null}
             </li>
           );
         })}

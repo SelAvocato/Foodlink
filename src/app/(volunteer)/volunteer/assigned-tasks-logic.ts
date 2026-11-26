@@ -90,7 +90,9 @@ export function mapRow(item: TaskItem, timeZone?: string): TaskRowView {
         ? `/volunteer/donations/${item.donationId}`
         : item.status === "PICKED_UP"
           ? dropoffPagePath(item.donationId)
-          : null,
+          : item.status === "DELIVERED"
+            ? `/tasks/${item.donationId}/distribution`
+            : null,
   };
 }
 
