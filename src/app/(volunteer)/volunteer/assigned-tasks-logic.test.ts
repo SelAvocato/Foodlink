@@ -128,11 +128,13 @@ describe("mapRow", () => {
     expect(mapRow(item({ status: "ASSIGNED" })).viewTaskHref).toBe(`/volunteer/donations/${DONATION_ID}`);
   });
 
-  it("links PICKED_UP rows to drop-off and keeps DELIVERED rows non-clickable", () => {
+  it("links PICKED_UP rows to drop-off and DELIVERED rows to distribution", () => {
     expect(mapRow(item({ status: "PICKED_UP" })).viewTaskHref).toBe(
       dropoffPagePath(DONATION_ID),
     );
-    expect(mapRow(item({ status: "DELIVERED" })).viewTaskHref).toBeNull();
+    expect(mapRow(item({ status: "DELIVERED" })).viewTaskHref).toBe(
+      `/tasks/${DONATION_ID}/distribution`,
+    );
   });
 
   it("puts the donation id in the View task link", () => {

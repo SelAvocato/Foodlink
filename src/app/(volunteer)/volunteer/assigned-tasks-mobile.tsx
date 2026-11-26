@@ -73,18 +73,11 @@ export function AssignedTasksMobile({
               ) : null}
 
               {item.status === "DELIVERED" ? (
-                <>
-                  {/* KNOWN LIMIT: the Figma shows "20 of 30 portions accounted for"; the
-                      list has no distribution data, so the line is left out. */}
-                  <Button
-                    variant="outline"
-                    disabled
-                    aria-disabled="true"
-                    className={CARD_BUTTON}
-                  >
+                <Button asChild className={CARD_BUTTON}>
+                  <Link href={`/tasks/${item.donationId}/distribution`}>
                     Record distribution
-                  </Button>
-                </>
+                  </Link>
+                </Button>
               ) : null}
             </li>
           );

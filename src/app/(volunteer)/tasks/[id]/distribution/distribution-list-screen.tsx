@@ -126,7 +126,6 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
         return;
       }
       setState(result);
-      setError(null);
     }).catch(() => {
       if (loadRun.current !== mine) return;
       setState({ kind: "error" });
@@ -138,7 +137,6 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
   }, [load]);
 
   const handleRetry = useCallback(() => {
-    setError(null);
     load();
   }, [load]);
 
