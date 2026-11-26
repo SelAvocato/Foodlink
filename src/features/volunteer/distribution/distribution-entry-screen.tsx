@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { GroupServed, UnusableReason } from "@/contracts/volunteer-distribution";
 import { DistributionEntryView } from "./distribution-entry-view";
+import { validateImage } from "@/contracts/image";
 import {
   createDistributionEntryInputSchema,
   overLimitMessage,
@@ -115,6 +116,7 @@ export function DistributionEntryScreen({
   const [banner, setBanner] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summary, setSummary] = useState<DistributionEntriesResponse["summary"] | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [editingEntry, setEditingEntry] = useState<{
     peopleServed: number;
     portionsDistributed: number;
@@ -197,7 +199,7 @@ export function DistributionEntryScreen({
     [setField],
   );
   const onGroupChange = useCallback(
-    (value: GroupServed) => setField("groupServed", value),
+    (value: string) => setField("groupServed", value),
     [setField],
   );
   const onPeopleChange = useCallback(
@@ -213,12 +215,36 @@ export function DistributionEntryScreen({
     [setField],
   );
   const onReasonChange = useCallback(
-    (value: UnusableReason | "") => setField("unusableReason", value),
+    (value: string) => setField("unusableReason", value),
     [setField],
   );
   const onNotesChange = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) => setField("notes", event.target.value),
+    (value: string) => setField("notes", value),
     [setField],
+  );
+  const onPhotoChange = useCallback(
+    (file: File | null) => {
+      if (!file) {
+        setSelectedPhoto(null);
+        return;
+      }
+      // Read the file as ArrayBuffer first, then validate and create preview
+      file.arrayBuffer().then((bytes) => {
+        const check = validateImage(new Uint8Array(bytes));
+        if (!check.ok) {
+          setSelectedPhoto(null);
+          return;
+        }
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const preview = e.target?.result as string;
+          setSelectedPhoto({ file, preview });
+        };
+        reader.readAsDataURL(file);
+      });
+    },
+    [],
   );
 
   const validateAndSubmit = useCallback(
@@ -348,6 +374,8 @@ form,
       onUnusableChange={onUnusableChange}
       onReasonChange={onReasonChange}
       onNotesChange={onNotesChange}
+      onPhotoChange={onPhotoChange}
+      selectedPhoto={selectedPhoto}
     />
   );
 }
