@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { saveChecklistSchema } from "@/contracts/donation-checklist";
+import { SHELF_LIFE_MESSAGE } from "@/lib/min-shelf-life";
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { getChecklist, saveChecklist } from "@/server/checklist/donation-checklist";
 import { prismaChecklistStore } from "@/server/checklist/prisma-checklist-store";
@@ -20,6 +21,8 @@ function checklistErrorResponse(error: string, fallbackMessage: string): Respons
       return errorResponse("CONSUME_BY_NOT_AFTER_PREPARED", "The consume-by time must be after the prepared time.", 422);
     case "CONSUME_BY_NOT_AFTER_PICKUP_END":
       return errorResponse("CONSUME_BY_NOT_AFTER_PICKUP_END", "The consume-by time must be after the pickup window ends.", 422);
+    case "CONSUME_BY_TOO_SOON":
+      return errorResponse("CONSUME_BY_TOO_SOON", SHELF_LIFE_MESSAGE, 422);
     default:
       return errorResponse("INTERNAL_ERROR", fallbackMessage, 500);
   }

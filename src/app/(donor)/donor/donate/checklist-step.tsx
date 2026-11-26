@@ -15,6 +15,7 @@ import {
   messageForChecklistError,
   parseChecklistLoad,
   parseSaveResponse,
+  shelfLifeMessage,
   toggleAllergen,
   toggleNone,
   type AllergenOption,
@@ -32,6 +33,8 @@ const STORAGE_CONDITIONS = [
 
 type ChecklistStepProps = {
   categoryName: string;
+  /** The category code, for the five-month shelf-life rule (sealed food and beverages). */
+  categoryCode: string;
   requiresPreparedTime: boolean;
   requiresStorageInfo: boolean;
   donationId: string;
@@ -50,6 +53,7 @@ const checkboxClass = "size-4 shrink-0 accent-(--fl-primary)";
 
 export function ChecklistStep({
   categoryName,
+  categoryCode,
   requiresPreparedTime,
   requiresStorageInfo,
   donationId,
@@ -66,6 +70,8 @@ export function ChecklistStep({
   const [saving, setSaving] = useState(false);
   const [outcome, setOutcome] = useState<SaveOutcome | null>(null);
   const [saved, setSaved] = useState(false);
+  // The shelf-life refusal sits under the field it is about, not in the banner.
+  const [consumeByError, setConsumeByError] = useState<string | null>(null);
   // Bumped when a load starts over: an answer that began earlier is stale.
   const loadRunRef = useRef(0);
 
@@ -123,6 +129,10 @@ export function ChecklistStep({
   /** Save order: the allergens first, then the checklist. A retry repeats both. */
   async function handleContinue() {
     if (saving) return;
+    // Checked first: a refused checklist must not even patch the allergens.
+    const shelfLife = shelfLifeMessage(form, categoryCode, new Date());
+    setConsumeByError(shelfLife);
+    if (shelfLife !== null) return;
     // Captured before the first await: what the PATCH sends is what the wizard keeps.
     const allergenCodes = [...form.allergenCodes];
     setSaving(true);
@@ -187,6 +197,7 @@ export function ChecklistStep({
     setForm(change);
     setOutcome(null);
     setSaved(false);
+    setConsumeByError(null);
   }
 
   const fieldsDisabled = loading || loadError || saving;
@@ -244,10 +255,17 @@ export function ChecklistStep({
               className="rounded-sm"
               value={form.consumeByAt}
               disabled={fieldsDisabled}
+              aria-invalid={consumeByError !== null}
+              aria-describedby={consumeByError === null ? undefined : "consume-by-error"}
               onChange={(event) =>
                 updateForm((current) => ({ ...current, consumeByAt: event.target.value }))
               }
             />
+            {consumeByError === null ? null : (
+              <p id="consume-by-error" role="alert" className="text-sm text-destructive">
+                {consumeByError}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">

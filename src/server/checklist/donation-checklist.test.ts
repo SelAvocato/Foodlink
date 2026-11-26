@@ -17,6 +17,8 @@ import {
 const PREPARED_AT = new Date("2026-11-08T08:00:00.000Z");
 const PICKUP_END = new Date("2026-11-08T12:00:00.000Z");
 const CONSUME_BY = new Date("2026-11-08T14:00:00.000Z");
+/** The injected clock for the five-month rule: its cutoff is 2027-04-26T05:00:00Z. */
+const SHELF_NOW = new Date("2026-11-26T05:00:00.000Z");
 
 // ---------------------------------------------------------------------------
 // Rules: fake category flags, not real category names. Every case names the
@@ -213,6 +215,39 @@ describe("evaluateChecklist", () => {
     expect(result).toEqual({ violations: [], missing: [], complete: true });
   });
 
+  it("never applies the shelf-life rule without the 4th argument", () => {
+    // getChecklist and posting call it with three arguments; they must not start refusing.
+    const result = evaluateChecklist(
+      { requiresPreparedTime: false, requiresStorageInfo: false },
+      { ...PACKAGED_COMPLETE, consumeByAt: new Date("2026-11-09T14:00:00.000Z") },
+      null,
+    );
+
+    expect(result).toEqual({ violations: [], missing: [], complete: true });
+  });
+
+  it("refuses a sealed packaged consume-by within five months when the shelf life is given", () => {
+    const result = evaluateChecklist(
+      { requiresPreparedTime: false, requiresStorageInfo: false },
+      { ...PACKAGED_COMPLETE, consumeByAt: new Date("2027-01-01T00:00:00.000Z") },
+      null,
+      { categoryCode: "PACKAGED_FOOD", now: SHELF_NOW },
+    );
+
+    expect(result).toEqual({ violations: ["CONSUME_BY_TOO_SOON"], missing: [], complete: false });
+  });
+
+  it("keeps an earlier violation first when the shelf life is also too soon", () => {
+    const result = evaluateChecklist(
+      { requiresPreparedTime: false, requiresStorageInfo: false },
+      { ...PACKAGED_COMPLETE, consumeByAt: new Date("2027-01-01T00:00:00.000Z") },
+      new Date("2027-02-01T00:00:00.000Z"),
+      { categoryCode: "PACKAGED_FOOD", now: SHELF_NOW },
+    );
+
+    expect(result.violations).toEqual(["CONSUME_BY_NOT_AFTER_PICKUP_END", "CONSUME_BY_TOO_SOON"]);
+  });
+
   it("treats a storage temperature of 0 as answered", () => {
     const flags: ChecklistFlags = { requiresPreparedTime: true, requiresStorageInfo: true };
 
@@ -258,6 +293,7 @@ class FakeChecklistStore implements ChecklistStore {
             status: donation.status,
             pickupEnd: donation.pickupEnd,
             deletedAt: donation.deletedAt,
+            categoryCode: donation.categoryCode,
             requiresPreparedTime: donation.requiresPreparedTime,
             requiresStorageInfo: donation.requiresStorageInfo,
           };
@@ -302,6 +338,8 @@ function seedDonation(store: FakeChecklistStore, overrides: Partial<SeedDonation
     status: "DRAFT",
     pickupEnd: null,
     deletedAt: null,
+    // Cooked meals is the default: it matches the both-flags default above.
+    categoryCode: "COOKED_MEALS",
     requiresPreparedTime: true,
     requiresStorageInfo: true,
     ...overrides,
@@ -464,6 +502,109 @@ describe("saveChecklist", () => {
     );
 
     expect(result).toEqual({ ok: false, error: "CONSUME_BY_NOT_AFTER_PICKUP_END" });
+    expect(store.writes).toHaveLength(0);
+  });
+});
+
+describe("saveChecklist shelf life", () => {
+  const PACKAGED_BODY = {
+    consumeByAt: "2027-01-01T00:00:00Z",
+    packagingIntact: true,
+    allergensConfirmed: true,
+    notCustomerPlateLeftovers: true,
+  };
+  const PACKAGED_FLAGS = { requiresPreparedTime: false, requiresStorageInfo: false };
+
+  it.each(["PACKAGED_FOOD", "BEVERAGES"])(
+    "refuses a consume-by under five months for %s and writes nothing",
+    async (categoryCode) => {
+      const store = makeStore({ categoryCode, ...PACKAGED_FLAGS });
+
+      const result = await saveChecklist(
+        { store, now: () => SHELF_NOW },
+        { donorId: DONOR_ID, donationId: DONATION_ID, input: input(PACKAGED_BODY) },
+      );
+
+      expect(result).toEqual({ ok: false, error: "CONSUME_BY_TOO_SOON" });
+      expect(store.writes).toHaveLength(0);
+    },
+  );
+
+  it.each(["PACKAGED_FOOD", "BEVERAGES"])(
+    "saves a consume-by more than five months away for %s",
+    async (categoryCode) => {
+      const store = makeStore({ categoryCode, ...PACKAGED_FLAGS });
+
+      const result = await saveChecklist(
+        { store, now: () => SHELF_NOW },
+        {
+          donorId: DONOR_ID,
+          donationId: DONATION_ID,
+          input: input({ ...PACKAGED_BODY, consumeByAt: "2027-06-01T00:00:00Z" }),
+        },
+      );
+
+      expect(result).toEqual({ ok: true, complete: true, missing: [] });
+      expect(store.writes).toHaveLength(1);
+    },
+  );
+
+  const NEAR_BODY = {
+    preparedAt: "2026-12-01T08:00:00Z",
+    consumeByAt: "2027-01-01T00:00:00Z",
+    storageCondition: "REFRIGERATED",
+    storageTemperatureC: 4,
+    packagingIntact: true,
+    allergensConfirmed: true,
+    notCustomerPlateLeftovers: true,
+  };
+
+  it.each([
+    ["COOKED_MEALS", { requiresPreparedTime: true, requiresStorageInfo: true }],
+    ["BAKERY", { requiresPreparedTime: true, requiresStorageInfo: false }],
+    ["FRESH_PRODUCE", { requiresPreparedTime: false, requiresStorageInfo: false }],
+  ] as const)("keeps a near consume-by for %s", async (categoryCode, flags) => {
+    const store = makeStore({ categoryCode, ...flags });
+
+    const result = await saveChecklist(
+      { store, now: () => SHELF_NOW },
+      { donorId: DONOR_ID, donationId: DONATION_ID, input: input(NEAR_BODY) },
+    );
+
+    expect(result).toEqual({ ok: true, complete: true, missing: [] });
+    expect(store.writes).toHaveLength(1);
+  });
+
+  it("uses the injected now instead of the wall clock", async () => {
+    // Six months after the injected 2021 clock: a real clock would call it too soon.
+    const store = makeStore({ categoryCode: "PACKAGED_FOOD", ...PACKAGED_FLAGS });
+
+    const result = await saveChecklist(
+      { store, now: () => new Date("2021-01-01T00:00:00.000Z") },
+      {
+        donorId: DONOR_ID,
+        donationId: DONATION_ID,
+        input: input({ ...PACKAGED_BODY, consumeByAt: "2021-07-01T00:00:00Z" }),
+      },
+    );
+
+    expect(result).toEqual({ ok: true, complete: true, missing: [] });
+    expect(store.writes).toHaveLength(1);
+  });
+
+  it("refuses on the injected now even when the real clock might not", async () => {
+    const store = makeStore({ categoryCode: "BEVERAGES", ...PACKAGED_FLAGS });
+
+    const result = await saveChecklist(
+      { store, now: () => SHELF_NOW },
+      {
+        donorId: DONOR_ID,
+        donationId: DONATION_ID,
+        input: input({ ...PACKAGED_BODY, consumeByAt: "2027-02-01T00:00:00Z" }),
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "CONSUME_BY_TOO_SOON" });
     expect(store.writes).toHaveLength(0);
   });
 });

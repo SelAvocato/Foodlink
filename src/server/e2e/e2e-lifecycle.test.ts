@@ -30,6 +30,7 @@ import { reviewSchema } from "@/contracts/review";
 import { pickupInspectionSchema } from "@/contracts/volunteer-pickup-inspection";
 import { createDistributionEntrySchema } from "@/contracts/volunteer-distribution";
 import { createStorage } from "@/lib/storage";
+import { addCalendarMonths } from "@/lib/min-shelf-life";
 import { prisma } from "@/server/db";
 import { createDraft } from "@/server/drafts/donation-drafts";
 import { prismaTransitionStore, transitionDonation } from "@/server/donations/transition-donation";
@@ -252,7 +253,8 @@ describe("FoodLink PostgreSQL lifecycle (C10)", () => {
 
       const pickupStart = new Date(Date.now() + 2 * 60 * 60 * 1000);
       const pickupEnd = new Date(pickupStart.getTime() + 2 * 60 * 60 * 1000);
-      const consumeBy = new Date(pickupEnd.getTime() + 24 * 60 * 60 * 1000);
+      // Sealed packaged food needs more than five months left at checklist save.
+      const consumeBy = addCalendarMonths(pickupEnd, 6);
 
       expectSuccess(
         await savePickup(

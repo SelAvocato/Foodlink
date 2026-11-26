@@ -290,6 +290,7 @@ export function DonateWizard({ hasDraftParam, initialDraftId }: DonateWizardProp
     return (
       <ChecklistStep
         categoryName={passedDraft.category.name}
+        categoryCode={passedDraft.category.code}
         requiresPreparedTime={passedDraft.category.requiresPreparedTime}
         requiresStorageInfo={passedDraft.category.requiresStorageInfo}
         donationId={passedDraft.donationId}

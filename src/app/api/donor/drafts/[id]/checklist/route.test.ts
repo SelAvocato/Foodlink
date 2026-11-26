@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "@/contracts/authz";
+import { SHELF_LIFE_MESSAGE } from "@/lib/min-shelf-life";
 import { AuthorizationError, requireRole } from "@/server/auth/require-role";
 import { getChecklist, saveChecklist, type ChecklistView } from "@/server/checklist/donation-checklist";
 import { GET, PUT } from "./route";
@@ -179,6 +180,7 @@ describe("PUT /api/donor/drafts/[id]/checklist", () => {
     ["NOT_EDITABLE", 409, "That draft can no longer be edited."],
     ["CONSUME_BY_NOT_AFTER_PREPARED", 422, "The consume-by time must be after the prepared time."],
     ["CONSUME_BY_NOT_AFTER_PICKUP_END", 422, "The consume-by time must be after the pickup window ends."],
+    ["CONSUME_BY_TOO_SOON", 422, SHELF_LIFE_MESSAGE],
   ] as const)("answers %s with status %i", async (error, status, message) => {
     vi.mocked(saveChecklist).mockResolvedValue({ ok: false, error });
 

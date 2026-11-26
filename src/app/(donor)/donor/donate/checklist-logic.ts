@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { StorageCondition } from "@/contracts/enums";
+import { SHELF_LIFE_MESSAGE, isConsumeByTooSoon } from "@/lib/min-shelf-life";
 import { messageForError } from "./photo-step-logic";
 
 /** One entry of the food-options allergen list the wizard already fetched. */
@@ -109,6 +110,20 @@ export function buildChecklistBody(form: ChecklistForm, flags: ChecklistFlags): 
   };
 }
 
+/**
+ * The client-side copy of the server's five-month rule for sealed packaged food
+ * and beverages: the message to show under consume-by, or null when it passes.
+ */
+export function shelfLifeMessage(
+  form: ChecklistForm,
+  categoryCode: string,
+  now: Date,
+): string | null {
+  const consumeBy = toIsoWithOffset(form.consumeByAt);
+  if (consumeBy === null) return null;
+  return isConsumeByTooSoon(categoryCode, new Date(consumeBy), now) ? SHELF_LIFE_MESSAGE : null;
+}
+
 /** Ticking an allergen always unticks None; unticking the last one does not tick it. */
 export function toggleAllergen(form: ChecklistForm, code: string): ChecklistForm {
   const already = form.allergenCodes.includes(code);
@@ -172,10 +187,11 @@ export function missingMessages(missing: string[]): string[] {
   return messages;
 }
 
-/** The two refusals only the checklist route returns; every other code shares the photo step's wording. */
+/** The refusals only the checklist route returns; every other code shares the photo step's wording. */
 const CHECKLIST_ERROR_MESSAGES: Record<string, string> = {
   CONSUME_BY_NOT_AFTER_PREPARED: "The consume-by time must be after the prepared time.",
   CONSUME_BY_NOT_AFTER_PICKUP_END: "The consume-by time must be after the pickup window ends.",
+  CONSUME_BY_TOO_SOON: SHELF_LIFE_MESSAGE,
 };
 
 /** Messages come from the code only; an unknown code or none at all is the generic one. */
