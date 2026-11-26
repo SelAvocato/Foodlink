@@ -41,7 +41,14 @@ export function CommandCenterView() {
         title="Command center"
         description="Priorities, counts, and recent activity across the admin workflow."
         actions={
-          <Button variant="outline" onClick={() => { setState({ status: "loading" }); setRetry((v) => v + 1); }}>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setState({ status: "loading" });
+              setRetry((v) => v + 1);
+            }}
+          >
             Refresh
           </Button>
         }
@@ -53,7 +60,13 @@ export function CommandCenterView() {
         <FeedbackBanner
           tone="error"
           title="Could not load command center"
-          action={{ label: "Try again", onClick: () => { setState({ status: "loading" }); setRetry((v) => v + 1); } }}
+          action={{
+            label: "Try again",
+            onClick: () => {
+              setState({ status: "loading" });
+              setRetry((v) => v + 1);
+            },
+          }}
         >
           {DASHBOARD_ERROR}
         </FeedbackBanner>
@@ -63,8 +76,17 @@ export function CommandCenterView() {
         <>
           <section aria-label="Operational counts" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {countCards(state.dashboard.counts).map((card) => (
-              <Link key={card.label} href={card.href} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <StatCard label={card.label} value={card.value} variant={card.variant} className="h-full transition-colors hover:bg-muted/40" />
+              <Link
+                key={card.label}
+                href={card.href}
+                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <StatCard
+                  label={card.label}
+                  value={card.value}
+                  variant={card.variant}
+                  className="h-full transition-colors hover:bg-muted/40"
+                />
               </Link>
             ))}
           </section>
@@ -72,35 +94,59 @@ export function CommandCenterView() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <SectionCard title="Recent activity" as="h2">
               {state.dashboard.recentActivity.length === 0 ? (
-                <EmptyState title="No recent activity" description="New registrations, screenings, and donation updates will appear here." />
+                <EmptyState
+                  title="No recent activity"
+                  description="New registrations, screenings, and donation updates will appear here."
+                />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Activity</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  <div className="space-y-3 md:hidden">
                     {state.dashboard.recentActivity.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{ACTIVITY_TYPE_LABEL[item.type]}</TableCell>
-                        <TableCell>
-                          <p className="font-medium text-foreground">{item.title}</p>
-                          <p className="mt-1 text-muted-foreground">{item.detail}</p>
-                        </TableCell>
-                        <TableCell><span className="tabular-nums">{formatActivityTime(item.occurredAt)}</span></TableCell>
-                        <TableCell>
-                          <Button asChild variant="outline" className="min-h-11">
-                            <Link href={item.href}>Open</Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      <article key={item.id} className="rounded-xl border border-border bg-card p-4">
+                        <p className="text-xs font-medium text-muted-foreground">{ACTIVITY_TYPE_LABEL[item.type]}</p>
+                        <p className="mt-1 font-medium text-foreground">{item.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          <span className="tabular-nums">{formatActivityTime(item.occurredAt)}</span>
+                        </p>
+                        <Button asChild variant="outline" className="mt-3 min-h-11 w-full">
+                          <Link href={item.href}>Open</Link>
+                        </Button>
+                      </article>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Activity</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {state.dashboard.recentActivity.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{ACTIVITY_TYPE_LABEL[item.type]}</TableCell>
+                            <TableCell>
+                              <p className="font-medium text-foreground">{item.title}</p>
+                              <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                            </TableCell>
+                            <TableCell>
+                              <span className="tabular-nums">{formatActivityTime(item.occurredAt)}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Button asChild variant="outline" className="min-h-11">
+                                <Link href={item.href}>Open</Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </SectionCard>
 
@@ -108,10 +154,38 @@ export function CommandCenterView() {
               <div className="space-y-3 text-body text-foreground">
                 <p className="text-pretty text-muted-foreground">Review items that need admin attention.</p>
                 <ul className="space-y-2">
-                  <li><Link className="text-primary underline-offset-4 hover:underline" href="/admin/registrations">Review pending registrations</Link></li>
-                  <li><Link className="text-primary underline-offset-4 hover:underline" href="/admin/screenings">Review screening decisions</Link></li>
-                  <li><Link className="text-primary underline-offset-4 hover:underline" href="/admin/donation-queue">Review posted donations</Link></li>
-                  <li><Link className="text-primary underline-offset-4 hover:underline" href="/admin/assignments">Assign accepted donations</Link></li>
+                  <li>
+                    <Link
+                      className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      href="/admin/registrations"
+                    >
+                      Review pending registrations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      href="/admin/screenings"
+                    >
+                      Review screening decisions
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      href="/admin/donation-queue"
+                    >
+                      Review posted donations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      href="/admin/assignments"
+                    >
+                      Assign accepted donations
+                    </Link>
+                  </li>
                 </ul>
               </div>
             </SectionCard>

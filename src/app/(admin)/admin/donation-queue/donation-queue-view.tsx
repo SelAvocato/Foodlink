@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { FilterBar, FilterSelect, SearchInput } from "@/components/shared/filter-bar";
-import { Pagination } from "@/components/shared/pagination";
 import { DataTableSkeleton } from "@/components/shared/table-skeleton";
 import {
   NOTICE,
@@ -63,7 +62,6 @@ type Banner = {
   action?: { label: string; href: string };
 };
 
-/** The queue answer, or null on any failure (network, timeout, status, wrong shape). */
 async function loadQueue(): Promise<DonationQueueJson[] | null> {
   try {
     const response = await fetch(`/api/admin/donations/queue?limit=${QUEUE_LIMIT}`, {
@@ -77,7 +75,6 @@ async function loadQueue(): Promise<DonationQueueJson[] | null> {
   }
 }
 
-/** The raw fn_donation_report JSON, or null on any failure. */
 async function loadDetail(donationId: string): Promise<unknown | null> {
   try {
     const response = await fetch(`/api/admin/donations/${encodeURIComponent(donationId)}`, {
@@ -261,13 +258,11 @@ export function DonationQueueView() {
       }
       const failure = transitionFailure(response.status);
       if (failure.refusal) {
-        // A refusal is handled like accept: the dialog closes and the queue is re-read.
         setDeclineOpen(false);
         setReason("");
         setBanner({ tone: failure.tone, title: failure.title, message: failure.message });
         if (failure.reload) reloadQueue();
       } else {
-        // An unexpected failure keeps the dialog open with the message inside it.
         setReasonError(failure.message);
       }
     } catch {
@@ -278,10 +273,10 @@ export function DonationQueueView() {
   }
 
   return (
-    <div className="mx-auto max-w-[1240px] space-y-6 text-[#13261F]">
+    <div className="mx-auto max-w-[1240px] space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold">Donation queue</h1>
-        <p className="mt-2 text-sm text-[#63746D]">
+        <h1 className="text-balance text-3xl font-semibold text-foreground sm:text-display">Donation queue</h1>
+        <p className="mt-2 text-sm text-muted-foreground sm:text-body">
           Posted, unexpired donations · Ordered by soonest pickup deadline
         </p>
       </div>
@@ -292,7 +287,7 @@ export function DonationQueueView() {
         </FeedbackBanner>
       ) : null}
 
-      <div className="rounded-2xl bg-white px-6 py-2">
+      <div className="rounded-2xl bg-card p-4 sm:px-6 sm:py-3">
         <FilterBar>
           <SearchInput
             label="Search food or donor"
@@ -312,13 +307,13 @@ export function DonationQueueView() {
             }}
             options={categoryOptions}
           />
-          <Button type="button" variant="ghost" onClick={() => setAscending((a) => !a)}>
+          <Button type="button" variant="ghost" className="min-h-11 w-full sm:w-auto" onClick={() => setAscending((a) => !a)}>
             {ascending ? "Deadline ↑" : "Deadline ↓"}
           </Button>
         </FilterBar>
       </div>
 
-      <div className="rounded-2xl bg-white px-8 py-4">
+      <div className="rounded-2xl bg-card p-4 sm:px-6 sm:py-4">
         {load.status === "loading" ? (
           <DataTableSkeleton rows={PAGE_SIZE} columns={5} label="Loading donation queue" />
         ) : load.status === "error" ? (
@@ -335,111 +330,156 @@ export function DonationQueueView() {
             description="Posted donations that are waiting for pickup will appear here."
           />
         ) : (
-          <table className="w-full text-left text-sm">
-            <colgroup>
-              <col style={{ width: "30%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "24%" }} />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "16%" }} />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-[#DDE4E0] text-xs font-medium text-[#63746D]">
-                <th className="py-4 pr-4 font-medium">Donation / donor</th>
-                <th className="py-4 pr-4 font-medium">Portions</th>
-                <th className="py-4 pr-4 font-medium">Pickup window</th>
-                <th className="py-4 pr-4 font-medium">Food check</th>
-                <th className="py-4 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <div className="space-y-3 md:hidden">
               {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-10 text-center text-[#63746D]">
-                    No donations match your filters.
-                  </td>
-                </tr>
+                <p className="py-8 text-center text-sm text-muted-foreground">No donations match your filters.</p>
               ) : (
                 pageRows.map((row) => (
-                  <tr key={row.donationId} className="border-b border-[#DDE4E0] last:border-b-0">
-                    <td className="py-4 pr-4 font-semibold">
+                  <article key={row.donationId} className="rounded-xl border border-border p-4">
+                    <p className="font-semibold text-foreground">
                       {row.donorName} · {row.foodName}
-                    </td>
-                    <td className="py-4 pr-4">{row.portions}</td>
-                    <td className="py-4 pr-4">
-                      {windowLabel(row.pickupStart, row.pickupEnd)}
-                    </td>
-                    <td className="py-4 pr-4">Photo + checklist</td>
-                    <td className="py-4">
-                      <button
-                        type="button"
-                        className="min-h-11 rounded-sm font-medium text-[#176448] hover:underline"
-                        onClick={() => review(row)}
-                      >
-                        Review →
-                      </button>
-                    </td>
-                  </tr>
+                    </p>
+                    <dl className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      <div className="flex gap-2">
+                        <dt className="min-w-24 font-medium text-foreground">Portions</dt>
+                        <dd>{row.portions}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="min-w-24 font-medium text-foreground">Pickup</dt>
+                        <dd>{windowLabel(row.pickupStart, row.pickupEnd)}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="min-w-24 font-medium text-foreground">Food check</dt>
+                        <dd>Photo + checklist</dd>
+                      </div>
+                    </dl>
+                    <Button type="button" variant="outline" className="mt-4 min-h-11 w-full" onClick={() => review(row)}>
+                      Review
+                    </Button>
+                  </article>
                 ))
               )}
-            </tbody>
-          </table>
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <colgroup>
+                  <col style={{ width: "30%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "24%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "16%" }} />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-border text-xs font-medium text-muted-foreground">
+                    <th className="py-4 pr-4 font-medium">Donation / donor</th>
+                    <th className="py-4 pr-4 font-medium">Portions</th>
+                    <th className="py-4 pr-4 font-medium">Pickup window</th>
+                    <th className="py-4 pr-4 font-medium">Food check</th>
+                    <th className="py-4 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-muted-foreground">
+                        No donations match your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    pageRows.map((row) => (
+                      <tr key={row.donationId} className="border-b border-border last:border-b-0">
+                        <td className="py-4 pr-4 font-semibold text-foreground">
+                          {row.donorName} · {row.foodName}
+                        </td>
+                        <td className="py-4 pr-4 text-muted-foreground">{row.portions}</td>
+                        <td className="py-4 pr-4 text-muted-foreground">
+                          {windowLabel(row.pickupStart, row.pickupEnd)}
+                        </td>
+                        <td className="py-4 pr-4 text-muted-foreground">Photo + checklist</td>
+                        <td className="py-4">
+                          <button
+                            type="button"
+                            className="min-h-11 rounded-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => review(row)}
+                          >
+                            Review →
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {load.status === "ready" && rows.length > 0 ? (
-        <Pagination
-          summary={summary}
-          page={currentPage}
-          pageCount={pageCountValue}
-          onPageChange={setPage}
-        />
+        <nav aria-label="Queue pagination" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">{summary}</p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 flex-1 sm:flex-none"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Previous
+            </Button>
+            <span className="shrink-0 text-sm text-muted-foreground">
+              Page {currentPage} of {pageCountValue}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 flex-1 sm:flex-none"
+              disabled={currentPage >= pageCountValue}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </nav>
       ) : null}
 
-      {limitNotice !== null ? (
-        <p className="text-sm text-[#63746D]">{limitNotice}</p>
-      ) : null}
+      {limitNotice !== null ? <p className="text-sm text-muted-foreground">{limitNotice}</p> : null}
 
       {selectedRow !== null ? (
-        <section className="rounded-2xl bg-[#E9F2EC] p-8">
+        <section className="rounded-2xl bg-success p-4 sm:p-6 md:p-8">
           {selectedDetail === null || selectedDetail.status === "loading" ? (
-            <p className="text-[15px] text-[#4A5C55]">Loading donation details…</p>
+            <p className="text-sm text-muted-foreground">Loading donation details…</p>
           ) : selectedDetail.status === "error" ? (
             <>
-              <p role="alert" className="text-[15px] text-[#4A5C55]">
+              <p role="alert" className="text-sm text-muted-foreground">
                 {DETAIL_ERROR}
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4 h-11 rounded-sm bg-white text-[#176448]"
-                onClick={retryDetail}
-              >
+              <Button type="button" variant="outline" className="mt-4 min-h-11 w-full sm:w-auto" onClick={retryDetail}>
                 Try again
               </Button>
             </>
           ) : (
             <>
-              <h2 className="text-2xl font-semibold">
+              <h2 className="text-balance text-xl font-semibold text-foreground sm:text-2xl">
                 {selectedRow.donorName} · {selectedRow.category}
               </h2>
-              <div className="mt-6 space-y-1 text-[15px] text-[#4A5C55]">
+              <div className="mt-4 space-y-1 text-sm text-muted-foreground sm:mt-6 sm:text-body">
                 <p>
-                  {selectedRow.foodName} · {selectedRow.portions} portions ·{" "}
-                  {selectedRow.donorName}
+                  {selectedRow.foodName} · {selectedRow.portions} portions · {selectedRow.donorName}
                 </p>
                 <p>
-                  Pickup: {addressLabel(selectedRow.pickupAddress)} ·{" "}
-                  {windowLabel(selectedRow.pickupStart, selectedRow.pickupEnd)}
+                  Pickup: {addressLabel(selectedRow.pickupAddress)} · {windowLabel(selectedRow.pickupStart, selectedRow.pickupEnd)}
                 </p>
                 <p>
                   Expiry: {lines?.expiry} · {lines?.packaging} · Allergens: {lines?.allergens}
                 </p>
               </div>
-              <div className="mt-16 flex flex-wrap gap-4">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button
                   type="button"
-                  className="h-11 min-w-[210px] rounded-sm bg-[#176448] hover:bg-[#135238]"
+                  className="min-h-11 w-full sm:w-auto sm:min-w-[210px]"
                   onClick={() => void accept(selectedRow)}
                   disabled={busy}
                 >
@@ -448,7 +488,7 @@ export function DonationQueueView() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 min-w-[210px] rounded-sm bg-white text-[#176448]"
+                  className="min-h-11 w-full sm:w-auto sm:min-w-[210px]"
                   onClick={() => {
                     setReason("");
                     setReasonError(null);
@@ -464,7 +504,7 @@ export function DonationQueueView() {
         </section>
       ) : null}
 
-      <div className="rounded-2xl bg-[#EAF3ED] px-6 py-6 text-[15px] text-[#176448]">{NOTICE}</div>
+      <div className="rounded-2xl bg-success px-4 py-4 text-sm text-success-foreground sm:px-6">{NOTICE}</div>
 
       <Dialog
         open={declineOpen}
@@ -476,7 +516,7 @@ export function DonationQueueView() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Decline this donation</DialogTitle>
             <DialogDescription>The donor will see your reason.</DialogDescription>
@@ -487,21 +527,22 @@ export function DonationQueueView() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
+            aria-invalid={reasonError ? true : undefined}
+            aria-describedby={reasonError ? "decline-reason-error" : undefined}
           />
-          <p className="text-xs text-[#63746D]">
+          <p className="text-xs text-muted-foreground">
             {reason.length} / {REASON_MAX}
           </p>
-          {reasonError ? <p className="text-sm text-red-700">{reasonError}</p> : null}
+          {reasonError ? (
+            <p id="decline-reason-error" role="alert" className="text-sm text-destructive">
+              {reasonError}
+            </p>
+          ) : null}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeclineOpen(false)}
-              disabled={busy}
-            >
+            <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => setDeclineOpen(false)} disabled={busy}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void confirmDecline()} disabled={busy}>
+            <Button type="button" className="min-h-11 w-full sm:w-auto" onClick={() => void confirmDecline()} disabled={busy}>
               Decline donation
             </Button>
           </DialogFooter>
