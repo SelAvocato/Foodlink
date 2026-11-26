@@ -7,6 +7,7 @@ type LockRow = {
   status: string;
   pickup_end: Date | null;
   deleted_at: Date | null;
+  code: string;
   requires_prepared_time: boolean;
   requires_storage_info: boolean;
 };
@@ -27,6 +28,7 @@ function createTransactionAdapter(tx: typeof prisma): ChecklistTx {
                d.status::text AS status,
                d.pickup_end,
                d.deleted_at,
+               cat.code,
                cat.requires_prepared_time,
                cat.requires_storage_info
         FROM donations d
@@ -43,6 +45,7 @@ function createTransactionAdapter(tx: typeof prisma): ChecklistTx {
         status: row.status as DonationStatus,
         pickupEnd: row.pickup_end,
         deletedAt: row.deleted_at,
+        categoryCode: row.code,
         requiresPreparedTime: row.requires_prepared_time,
         requiresStorageInfo: row.requires_storage_info,
       };

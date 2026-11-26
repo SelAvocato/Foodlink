@@ -1,8 +1,12 @@
 import type { SaveChecklistInput } from "@/contracts/donation-checklist";
 import { DonationStatus } from "@/contracts/enums";
 import type { StorageCondition } from "@/contracts/enums";
+import { isConsumeByTooSoon } from "@/lib/min-shelf-life";
 
-export type ChecklistViolation = "CONSUME_BY_NOT_AFTER_PREPARED" | "CONSUME_BY_NOT_AFTER_PICKUP_END";
+export type ChecklistViolation =
+  | "CONSUME_BY_NOT_AFTER_PREPARED"
+  | "CONSUME_BY_NOT_AFTER_PICKUP_END"
+  | "CONSUME_BY_TOO_SOON";
 
 /** The two food_categories flags that decide which answers this donation needs. */
 export type ChecklistFlags = {
@@ -32,6 +36,7 @@ export type LockedDonation = {
   status: DonationStatus;
   pickupEnd: Date | null;
   deletedAt: Date | null;
+  categoryCode: string;
   requiresPreparedTime: boolean;
   requiresStorageInfo: boolean;
 };
@@ -94,11 +99,15 @@ export function normalizeAnswers(
  * The application mirror of fn_assert_checklist_rules and the checklist CHECK
  * constraints in db/baseline/001_schema.sql. Violations refuse the save; missing
  * only keeps completed_at null, so the donor can save progress.
+ *
+ * `shelfLife` is only passed by the save path: the read and posting paths keep
+ * their previous behaviour until the rule is extended to them.
  */
 export function evaluateChecklist(
   category: ChecklistFlags,
   answers: Partial<ChecklistAnswers>,
   pickupEnd: Date | null,
+  shelfLife?: { categoryCode: string; now: Date },
 ): ChecklistEvaluation {
   const normalised = normalizeAnswers(category, answers);
 
@@ -111,6 +120,10 @@ export function evaluateChecklist(
   // whenever the pickup window exists, completed or not.
   if (pickupEnd !== null && normalised.consumeByAt !== null && normalised.consumeByAt <= pickupEnd) {
     violations.push("CONSUME_BY_NOT_AFTER_PICKUP_END");
+  }
+  // Sealed packaged food and beverages need more than five months left.
+  if (shelfLife !== undefined && isConsumeByTooSoon(shelfLife.categoryCode, normalised.consumeByAt, shelfLife.now)) {
+    violations.push("CONSUME_BY_TOO_SOON");
   }
 
   const missing: string[] = [];
@@ -170,7 +183,7 @@ function toView(row: StoredChecklist): ChecklistView {
  * rule is violated. donations.status is never touched here.
  */
 export async function saveChecklist(
-  deps: { store: ChecklistStore },
+  deps: { store: ChecklistStore; now?: () => Date },
   args: { donorId: string; donationId: string; input: SaveChecklistInput },
 ): Promise<SaveChecklistResult> {
   const { donorId, donationId, input } = args;
@@ -190,7 +203,10 @@ export async function saveChecklist(
       requiresStorageInfo: donation.requiresStorageInfo,
     };
     const answers = normalizeAnswers(category, input);
-    const evaluation = evaluateChecklist(category, answers, donation.pickupEnd);
+    const evaluation = evaluateChecklist(category, answers, donation.pickupEnd, {
+      categoryCode: donation.categoryCode,
+      now: (deps.now ?? (() => new Date()))(),
+    });
     const firstViolation = evaluation.violations[0];
     if (firstViolation !== undefined) return { ok: false, error: firstViolation };
 

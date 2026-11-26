@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SHELF_LIFE_MESSAGE, addCalendarMonths } from "@/lib/min-shelf-life";
 import { GENERIC_ERROR } from "./photo-step-logic";
 import {
   allergenCodesFromDraftList,
@@ -10,6 +11,7 @@ import {
   messageForChecklistError,
   parseChecklistLoad,
   parseSaveResponse,
+  shelfLifeMessage,
   toIsoWithOffset,
   toggleAllergen,
   toggleNone,
@@ -289,6 +291,7 @@ describe("messageForChecklistError", () => {
     ["NOT_EDITABLE", "That draft can no longer be changed."],
     ["CONSUME_BY_NOT_AFTER_PREPARED", "The consume-by time must be after the prepared time."],
     ["CONSUME_BY_NOT_AFTER_PICKUP_END", "The consume-by time must be after the pickup window ends."],
+    ["CONSUME_BY_TOO_SOON", SHELF_LIFE_MESSAGE],
     ["INVALID_REQUEST", "That request was not valid. Please try again."],
     ["INTERNAL_ERROR", GENERIC_ERROR],
     ["UNAUTHENTICATED", "You are not signed in."],
@@ -304,6 +307,42 @@ describe("messageForChecklistError", () => {
   it("falls back to the generic message for an unknown code and for none", () => {
     expect(messageForChecklistError("SOMETHING_NEW")).toBe(GENERIC_ERROR);
     expect(messageForChecklistError(undefined)).toBe(GENERIC_ERROR);
+  });
+});
+
+describe("shelfLifeMessage", () => {
+  const NOW = new Date("2026-11-26T05:00:00.000Z");
+  const CUTOFF = addCalendarMonths(NOW, 5);
+
+  /** The form holds local wall time; this keeps the same instant whatever the timezone. */
+  function formAt(date: Date): ChecklistForm {
+    return emptyForm({ consumeByAt: fromIsoToLocalInput(date.toISOString()) });
+  }
+
+  it("warns for a consume-by under five months on sealed packaged food", () => {
+    expect(shelfLifeMessage(formAt(new Date("2027-01-01T00:00:00.000Z")), "PACKAGED_FOOD", NOW)).toBe(
+      SHELF_LIFE_MESSAGE,
+    );
+  });
+
+  it("warns at exactly five months, because the rule is strictly after", () => {
+    expect(shelfLifeMessage(formAt(CUTOFF), "BEVERAGES", NOW)).toBe(SHELF_LIFE_MESSAGE);
+  });
+
+  it("passes a consume-by later than five months", () => {
+    expect(
+      shelfLifeMessage(formAt(new Date(CUTOFF.getTime() + 60_000)), "PACKAGED_FOOD", NOW),
+    ).toBeNull();
+  });
+
+  it("ignores a category the rule does not cover", () => {
+    expect(
+      shelfLifeMessage(formAt(new Date("2027-01-01T00:00:00.000Z")), "FRESH_PRODUCE", NOW),
+    ).toBeNull();
+  });
+
+  it("says nothing when the consume-by is empty", () => {
+    expect(shelfLifeMessage(emptyForm(), "PACKAGED_FOOD", NOW)).toBeNull();
   });
 });
 
