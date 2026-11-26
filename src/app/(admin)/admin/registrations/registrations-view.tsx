@@ -62,11 +62,8 @@ export function RegistrationsView() {
   const [proofError, setProofError] = useState<string | null>(null);
   const [proofBusy, setProofBusy] = useState(false);
 
-  // Fetching and applying are separate: the mount effect only passes applyApplicants
-  // as a callback, so it never calls setState synchronously (react-hooks/set-state-in-effect).
   const loadApplicants = useCallback(async (): Promise<Applicant[] | null> => {
     try {
-      // No query: the route defaults to PENDING with limit 50.
       const response = await fetch("/api/admin/users");
       if (!response.ok) return null;
       const body: unknown = await response.json();
@@ -80,7 +77,6 @@ export function RegistrationsView() {
     setLoad(applicants === null ? { status: "error" } : { status: "ready", applicants });
   }, []);
 
-  /** Only the newest request may apply its result; older ones are dropped. */
   const loadLatest = useCallback(async (): Promise<{ isStale: () => boolean; applicants: Applicant[] | null }> => {
     loadSeq.current += 1;
     const mine = loadSeq.current;
@@ -94,7 +90,6 @@ export function RegistrationsView() {
     });
   }, [loadLatest, applyApplicants]);
 
-  /** Full reload through the loading state; from click handlers only. */
   function reload() {
     setLoad({ status: "loading" });
     void loadLatest().then((r) => {
@@ -108,7 +103,6 @@ export function RegistrationsView() {
   const selected = visible.find((a) => a.id === selectedId) ?? visible[0] ?? null;
   const now = new Date();
 
-  /** Switching tabs makes the old selection disappear, so the first applicant wins. */
   function chooseTab(next: RegistrationsTab) {
     setTab(next);
     setSelectedId(filterByTab(applicants, next)[0]?.id ?? null);
@@ -124,7 +118,6 @@ export function RegistrationsView() {
 
   function removeApplicant(applicant: Applicant) {
     const index = visible.findIndex((a) => a.id === applicant.id);
-    // The one after it, else the one before it, else nothing left to select.
     const next = index === -1 ? null : (visible[index + 1] ?? visible[index - 1] ?? null);
     setSelectedId(next?.id ?? null);
     setProofError(null);
@@ -147,11 +140,9 @@ export function RegistrationsView() {
       });
       if (response.ok) {
         removeApplicant(applicant);
-        // Refill the queue (the route returns at most 50); a failed re-read keeps the current list.
         void loadLatest().then((r) => {
           if (r.isStale()) return;
           if (r.applicants !== null) applyApplicants(r.applicants);
-          // A failed refill must not leave a reload stuck on "Loading"; a good list stays.
           else setLoad((current) => (current.status === "loading" ? { status: "error" } : current));
         });
         setRejectOpen(false);
@@ -162,14 +153,12 @@ export function RegistrationsView() {
       const errorBody: unknown = await response.json().catch(() => null);
       const failure = reviewMessage(response.status, errorBody);
       if (failure.reload || body.action === "APPROVE") {
-        // 404/409 mean the list is stale: close the dialog so a second click cannot hit another applicant.
         setReviewError(failure.message);
         setRejectOpen(false);
         setReason("");
         setReasonError(null);
         if (failure.reload) reload();
       } else {
-        // A failed reject keeps the dialog open and shows the message inside it.
         setReasonError(failure.message);
       }
     } catch {
@@ -185,7 +174,6 @@ export function RegistrationsView() {
     const documents = selected.documents;
     const proof = documents.length > 0 ? documents[0] : null;
     if (proof === null) return;
-    // The blank tab must open inside the click handler or the popup blocker stops it.
     const blank = window.open("", "_blank");
     if (blank === null) {
       setProofError(PROOF_ERROR);
@@ -194,14 +182,11 @@ export function RegistrationsView() {
     setProofError(null);
     setProofBusy(true);
     try {
-      const response = await fetch(
-        `/api/admin/users/${selected.id}/documents/${proof.id}/signed-url`,
-      );
+      const response = await fetch(`/api/admin/users/${selected.id}/documents/${proof.id}/signed-url`);
       if (!response.ok) throw new Error("proof request failed");
       const body: unknown = await response.json();
       const url = readSignedUrl(body);
       if (url === null) throw new Error("proof response had no url");
-      // Handed straight to the tab: never kept in state, never logged, never shown.
       blank.location.href = url;
     } catch {
       blank.close();
@@ -236,25 +221,20 @@ export function RegistrationsView() {
     void submitReview(target, { action: "REJECT", reason: validation.reason });
   }
 
-  const proof =
-    selected === null
-      ? null
-      : selected.documents.length > 0
-        ? selected.documents[0]
-        : null;
+  const proof = selected === null ? null : selected.documents.length > 0 ? selected.documents[0] : null;
 
   return (
-    <div className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
-      <div className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
-        <p className="text-xs font-semibold tracking-wide text-(--fl-primary)">
-          Workspace / Registration approvals
-        </p>
-        <h1 className="mt-6 text-3xl font-semibold sm:text-4xl">Registration approvals</h1>
-        <p className="mt-3 text-(--fl-muted)">
-          Review private proof documents before activating donor and volunteer accounts.
-        </p>
+    <div className="min-h-0 text-foreground">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-primary">Workspace / Registration approvals</p>
+          <h1 className="mt-4 text-balance text-3xl font-semibold sm:text-display">Registration approvals</h1>
+          <p className="mt-3 text-sm text-muted-foreground sm:text-body">
+            Review private proof documents before activating donor and volunteer accounts.
+          </p>
+        </div>
 
-        <nav aria-label="Application filters" className="mt-8 flex flex-wrap gap-x-8 gap-y-2">
+        <nav aria-label="Application filters" className="flex flex-wrap gap-x-6 gap-y-2">
           {REGISTRATIONS_TABS.map((key) => (
             <button
               key={key}
@@ -262,39 +242,34 @@ export function RegistrationsView() {
               aria-pressed={tab === key}
               onClick={() => chooseTab(key)}
               disabled={busy}
-              className="text-base font-semibold text-(--fl-primary)"
+              className={`min-h-11 border-b-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === key ? "border-primary" : "border-transparent"}`}
             >
               {key === "pending" ? `${TAB_LABELS.pending} ${counts.pending}` : TAB_LABELS[key]}
             </button>
           ))}
         </nav>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           {load.status === "loading" ? (
-            <section aria-busy="true" className="rounded-2xl bg-(--fl-card) p-6 lg:col-span-2">
-              <p className="text-(--fl-muted)">Loading applications…</p>
+            <section aria-busy="true" className="rounded-2xl bg-card p-4 sm:p-6 lg:col-span-2">
+              <p className="text-muted-foreground">Loading applications…</p>
             </section>
           ) : load.status === "error" ? (
-            <section className="rounded-2xl bg-(--fl-card) p-6 lg:col-span-2">
-              <p role="alert" className="text-(--fl-muted)">
+            <section className="rounded-2xl bg-card p-4 sm:p-6 lg:col-span-2">
+              <p role="alert" className="text-muted-foreground">
                 {LIST_ERROR}
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={reload}
-              >
+              <Button type="button" variant="outline" className="mt-4 min-h-11 w-full sm:w-auto" onClick={reload}>
                 Try again
               </Button>
             </section>
           ) : selected === null ? (
-            <section className="rounded-2xl bg-(--fl-card) p-6 lg:col-span-2">
-              <p className="text-(--fl-muted)">No pending applications.</p>
+            <section className="rounded-2xl bg-card p-4 sm:p-6 lg:col-span-2">
+              <p className="text-muted-foreground">No pending applications.</p>
             </section>
           ) : (
             <>
-              <section className="rounded-2xl bg-(--fl-card) p-3">
+              <section className="rounded-2xl bg-card p-3">
                 <h2 className="sr-only">Applications</h2>
                 <ul className="flex flex-col gap-1">
                   {visible.map((applicant) => (
@@ -304,22 +279,19 @@ export function RegistrationsView() {
                         aria-current={applicant.id === selected.id ? "true" : undefined}
                         onClick={() => select(applicant.id)}
                         disabled={busy}
-                        className={`w-full rounded-xl px-4 py-6 text-left ${
-                          applicant.id === selected.id
-                            ? "bg-(--fl-success)"
-                            : "hover:bg-(--fl-canvas)"
+                        className={`min-h-11 w-full rounded-xl px-4 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-6 ${
+                          applicant.id === selected.id ? "bg-success" : "hover:bg-muted"
                         }`}
                       >
                         <span
-                          className={`block text-lg font-semibold ${
-                            applicant.id === selected.id ? "text-(--fl-primary)" : ""
+                          className={`block text-base font-semibold sm:text-lg ${
+                            applicant.id === selected.id ? "text-primary" : "text-foreground"
                           }`}
                         >
                           {applicant.businessName ?? applicant.fullName}
                         </span>
-                        <span className="mt-2 block text-sm text-(--fl-muted)">
-                          {typeLabel(applicant.role, applicant.donorType)} ·{" "}
-                          {relativeDayLabel(applicant.createdAt, now)}
+                        <span className="mt-2 block text-sm text-muted-foreground">
+                          {typeLabel(applicant.role, applicant.donorType)} · {relativeDayLabel(applicant.createdAt, now)}
                         </span>
                       </button>
                     </li>
@@ -327,90 +299,58 @@ export function RegistrationsView() {
                 </ul>
               </section>
 
-              <section className="rounded-2xl bg-(--fl-card) p-6 sm:p-8">
-                <h2 className="text-2xl font-semibold sm:text-3xl">
+              <section className="rounded-2xl bg-card p-4 sm:p-6 md:p-8">
+                <h2 className="text-balance text-2xl font-semibold sm:text-3xl">
                   {selected.businessName ?? selected.fullName}
                 </h2>
-                <p className="mt-4 text-sm font-semibold text-[#885B16]">
+                <p className="mt-4 text-sm font-semibold text-warning-foreground">
                   {typeLabel(selected.role, selected.donorType)} · PENDING
                 </p>
 
-                <dl className="mt-8 flex flex-col gap-1 text-base">
-                  <div>
-                    <dt className="inline">Full name: </dt>
-                    <dd className="inline">{selected.fullName}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline">Email: </dt>
-                    <dd className="inline">{selected.email}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline">Address: </dt>
-                    <dd className="inline">{joinAddress(selected.address)}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline">Privacy consent recorded: </dt>
-                    <dd className="inline">{formatConsent(selected.privacyConsentAt)}</dd>
-                  </div>
+                <dl className="mt-6 flex flex-col gap-1 text-sm sm:text-body">
+                  <div><dt className="inline font-medium">Full name: </dt><dd className="inline break-words">{selected.fullName}</dd></div>
+                  <div><dt className="inline font-medium">Email: </dt><dd className="inline break-all">{selected.email}</dd></div>
+                  <div><dt className="inline font-medium">Address: </dt><dd className="inline break-words">{joinAddress(selected.address)}</dd></div>
+                  <div><dt className="inline font-medium">Privacy consent recorded: </dt><dd className="inline">{formatConsent(selected.privacyConsentAt)}</dd></div>
                 </dl>
 
                 {proof === null ? null : (
-                  <div className="mt-10 rounded-xl bg-(--fl-canvas) p-5">
-                    <h3 className="text-lg font-semibold">{proofCardTitle(proof.type)}</h3>
-                    <p className="mt-3 text-sm text-(--fl-muted)">
-                      Private document · Available only to authorized admins
-                    </p>
+                  <div className="mt-8 rounded-xl bg-muted p-4 sm:p-5">
+                    <h3 className="text-lg font-semibold text-foreground">{proofCardTitle(proof.type)}</h3>
+                    <p className="mt-3 text-sm text-muted-foreground">Private document · Available only to authorized admins</p>
                     <Button
                       type="button"
                       variant="link"
-                      className="mt-3 h-auto p-0 font-semibold"
+                      className="mt-3 h-auto min-h-11 p-0 font-semibold"
                       onClick={() => void openProof()}
                       disabled={proofBusy}
                     >
                       Open proof document →
                     </Button>
                     {proofError === null ? null : (
-                      <p
-                        role="alert"
-                        className="mt-3 rounded-lg bg-(--fl-error) p-3 text-sm text-(--fl-ink)"
-                      >
+                      <p role="alert" className="mt-3 rounded-lg bg-error p-3 text-sm text-foreground">
                         {proofError}
                       </p>
                     )}
                   </div>
                 )}
 
-                <div className="mt-8 flex flex-col gap-1 text-sm text-(--fl-muted)">
+                <div className="mt-8 flex flex-col gap-1 text-sm text-muted-foreground">
                   <p>Approving enables login. No email is sent yet.</p>
                   <p>Rejecting requires a reason that is saved with the decision. No email is sent yet.</p>
                 </div>
 
                 {reviewError === null ? null : (
-                  <p
-                    role="alert"
-                    className="mt-6 rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)"
-                  >
+                  <p role="alert" className="mt-6 rounded-lg bg-error p-4 text-sm text-foreground">
                     {reviewError}
                   </p>
                 )}
 
-                <div className="mt-10 flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    size="lg"
-                    onClick={() => void submitReview(selected, { action: "APPROVE" })}
-                    disabled={busy}
-                  >
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <Button type="button" size="lg" className="min-h-11 w-full sm:w-auto" onClick={() => void submitReview(selected, { action: "APPROVE" })} disabled={busy}>
                     Approve account
                   </Button>
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="outline"
-                    className="text-(--fl-primary)"
-                    onClick={openReject}
-                    disabled={busy}
-                  >
+                  <Button type="button" size="lg" variant="outline" className="min-h-11 w-full text-primary sm:w-auto" onClick={openReject} disabled={busy}>
                     Reject application
                   </Button>
                 </div>
@@ -419,7 +359,7 @@ export function RegistrationsView() {
           )}
         </div>
 
-        <p className="mt-6 rounded-xl bg-(--fl-success) p-5 text-sm text-(--fl-primary)">
+        <p className="rounded-xl bg-success p-4 text-sm text-success-foreground sm:p-5">
           Proof documents are private. A donor’s type becomes fixed after approval.
         </p>
 
@@ -434,12 +374,11 @@ export function RegistrationsView() {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Reject application</DialogTitle>
               <DialogDescription>
-                Give a reason for rejecting this application. It is required and is saved with the
-                decision. No email is sent yet.
+                Give a reason for rejecting this application. It is required and is saved with the decision. No email is sent yet.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2">
@@ -461,15 +400,10 @@ export function RegistrationsView() {
               )}
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRejectOpen(false)}
-                disabled={busy}
-              >
+              <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => setRejectOpen(false)} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="button" onClick={confirmReject} disabled={busy}>
+              <Button type="button" className="min-h-11 w-full sm:w-auto" onClick={confirmReject} disabled={busy}>
                 Reject
               </Button>
             </DialogFooter>
@@ -479,5 +413,3 @@ export function RegistrationsView() {
     </div>
   );
 }
-
-

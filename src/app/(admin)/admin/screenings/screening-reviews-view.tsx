@@ -31,11 +31,7 @@ import {
 } from "./screening-reviews-logic";
 
 const EMPTY_CASES: ScreeningCase[] = [];
-
 const LIST_ERROR = "The screening queue could not be loaded.";
-
-// The signed photo URL lives 300 s (DEFAULT_SIGNED_URL_SECONDS), so the queue is
-// re-read on this cadence before the "Open full image" link expires.
 const QUIET_REFILL_MS = 240000;
 
 type LoadState =
@@ -51,18 +47,11 @@ export function ScreeningReviewsView() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
-  // The case under review: a queue arrival pins the first case only while nothing
-  // is pinned, and the Admin's own decision moves the pin to the next case.
   const [pinned, setPinned] = useState<ScreeningCase | null>(null);
-  // A quiet re-read that fails keeps the queue on screen, but its photo links age out.
   const [refreshFailed, setRefreshFailed] = useState(false);
   const loadSeq = useRef(0);
-  // The newest queue as it arrived: an own decision is computed from this ref,
-  // never from the list captured when the click happened.
   const latestQueue = useRef<ScreeningCase[]>([]);
 
-  // Fetching and applying are separate: the mount effect only passes applyCases
-  // as a callback, so it never calls setState synchronously (react-hooks/set-state-in-effect).
   const loadCases = useCallback(async (): Promise<ScreeningCase[] | null> => {
     try {
       const response = await fetch("/api/admin/screenings?limit=100");
@@ -79,23 +68,13 @@ export function ScreeningReviewsView() {
       setLoad({ status: "error" });
       return;
     }
-    // The ref keeps the newest queue for a later own decision, written before
-    // setLoad so no click can read a snapshot older than the screen.
     latestQueue.current = cases;
-    // A queue arrival clears a refresh notice and pins the first case, but only
-    // while nothing is pinned: the case under review never moves on its own.
-    // The functional update keeps `pinned` out of the deps, so the mount effect
-    // and the refresh interval keep their stable callbacks.
     setPinned((held) => held ?? cases[0] ?? null);
     setRefreshFailed(false);
     setLoad({ status: "ready", cases });
   }, []);
 
-  /** Only the newest request may apply its result; older ones are dropped. */
-  const loadLatest = useCallback(async (): Promise<{
-    isStale: () => boolean;
-    cases: ScreeningCase[] | null;
-  }> => {
+  const loadLatest = useCallback(async (): Promise<{ isStale: () => boolean; cases: ScreeningCase[] | null }> => {
     loadSeq.current += 1;
     const mine = loadSeq.current;
     const cases = await loadCases();
@@ -108,7 +87,6 @@ export function ScreeningReviewsView() {
     });
   }, [loadLatest, applyCases]);
 
-  /** Full reload through the loading state; from the click handler only. */
   function reload() {
     setLoad({ status: "loading" });
     void loadLatest().then((r) => {
@@ -116,7 +94,6 @@ export function ScreeningReviewsView() {
     });
   }
 
-  /** Quiet refill: the current queue stays on screen until the new one lands. */
   const refill = useCallback(() => {
     void loadLatest().then((r) => {
       if (r.isStale()) return;
@@ -124,17 +101,11 @@ export function ScreeningReviewsView() {
         applyCases(r.cases);
         return;
       }
-      // Only a reload still waiting for its first answer becomes the load error:
-      // a ready queue is never taken over here, so a retained pinned case stays
-      // on screen (showQueueError decides for an empty one). The queue that
-      // stays says so, because its photo links age out.
       setRefreshFailed(true);
       setLoad((state) => (state.status === "loading" ? { status: "error" } : state));
     });
   }, [loadLatest, applyCases]);
 
-  // Keep the signed photo URL fresh: re-read the queue on a timer (skipped while the
-  // tab is hidden) and again when it becomes visible, without any loading state.
   useEffect(() => {
     const refillIfVisible = () => {
       if (document.visibilityState === "visible") refill();
@@ -147,27 +118,15 @@ export function ScreeningReviewsView() {
     };
   }, [refill]);
 
-  /**
-   * The Admin's own decision, from the newest queue only: the decided case is
-   * dropped, the rest stays on screen and its first case becomes the pin, so a
-   * refill that landed while the POST was in flight cannot be shadowed by the
-   * click-time snapshot.
-   */
   function applyOwnDecision(screeningId: string) {
     const next = latestQueue.current.filter((c) => c.screeningId !== screeningId);
     latestQueue.current = next;
-    // The load update is functional and the pin is set beside it: no state
-    // setter is ever called inside another setter's updater.
     setLoad((state) => (state.status === "ready" ? { status: "ready", cases: next } : state));
     setPinned(nextAfterDecision(latestQueue.current, screeningId));
   }
 
   const cases = load.status === "ready" ? load.cases : EMPTY_CASES;
-  // The screen shows the pinned case, refreshed from the latest queue when it is
-  // still pending and held as it is (gone) when the queue no longer has it.
   const { current, gone } = reconcileActive(pinned, cases);
-  // An emptied queue with a retained case stays on screen; only an empty queue
-  // with no case and a failed refresh falls back to the load error.
   const showError = showQueueError(load.status, cases.length, current !== null, refreshFailed);
 
   async function submitDecision(target: ScreeningCase, body: ScreeningDecisionBody) {
@@ -182,7 +141,6 @@ export function ScreeningReviewsView() {
       });
       if (response.ok) {
         applyOwnDecision(target.screeningId);
-        // Refill the queue (the route returns at most 100).
         refill();
         setRejectOpen(false);
         setReason("");
@@ -192,14 +150,12 @@ export function ScreeningReviewsView() {
       const errorBody: unknown = await response.json().catch(() => null);
       const failure = decisionMessage(response.status, errorBody);
       if (failure.refill || body.decision === "PASS") {
-        // 404/409 mean the queue is stale: close the dialog so a second click cannot hit another case.
         setDecisionError(failure.message);
         setRejectOpen(false);
         setReason("");
         setReasonError(null);
         if (failure.refill) refill();
       } else {
-        // A failed reject keeps the dialog open and shows the message inside it.
         setReasonError(failure.message);
       }
     } catch {
@@ -236,29 +192,27 @@ export function ScreeningReviewsView() {
   }
 
   return (
-    <div className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
+    <div className="min-h-0 text-foreground">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <header className="flex flex-col gap-2">
-          <p className="text-xs font-semibold tracking-wide text-(--fl-primary)">
-            Workspace / Screening reviews
-          </p>
-          <h1 className="text-3xl font-bold sm:text-4xl">Screening reviews</h1>
-          <p className="text-(--fl-muted)">
+          <p className="text-xs font-semibold tracking-wide text-primary">Workspace / Screening reviews</p>
+          <h1 className="text-balance text-3xl font-semibold sm:text-display">Screening reviews</h1>
+          <p className="text-sm text-muted-foreground sm:text-body">
             Only REVIEW verdicts enter this queue. FLAG verdicts are rejected automatically.
           </p>
         </header>
 
         {load.status === "ready" && !showError ? (
-          <p className="font-semibold text-[#885B16]">{countLabel(cases.length)}</p>
+          <p className="font-semibold text-warning-foreground">{countLabel(cases.length)}</p>
         ) : null}
 
         {load.status === "ready" && refreshFailed && !showError ? (
           <div
             role="status"
-            className="flex items-center justify-between gap-4 rounded-xl bg-(--fl-warning) px-4 py-3 text-sm text-[#885B16]"
+            className="flex flex-col gap-3 rounded-xl bg-warning px-4 py-3 text-sm text-warning-foreground sm:flex-row sm:items-center sm:justify-between"
           >
             <p>The queue could not be refreshed, so photo links may have expired.</p>
-            <Button type="button" variant="outline" onClick={refill}>
+            <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={refill}>
               Refresh now
             </Button>
           </div>
@@ -266,48 +220,47 @@ export function ScreeningReviewsView() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
           {load.status === "loading" ? (
-            <section aria-busy="true" className="rounded-2xl bg-(--fl-card) p-6 sm:p-8 lg:col-span-2">
-              <p className="text-(--fl-muted)">Loading cases…</p>
+            <section aria-busy="true" className="rounded-2xl bg-card p-4 sm:p-6 md:p-8 lg:col-span-2">
+              <p className="text-muted-foreground">Loading cases…</p>
             </section>
           ) : showError ? (
-            <section className="rounded-2xl bg-(--fl-card) p-6 sm:p-8 lg:col-span-2">
-              <p role="alert" className="text-(--fl-muted)">
+            <section className="rounded-2xl bg-card p-4 sm:p-6 md:p-8 lg:col-span-2">
+              <p role="alert" className="text-muted-foreground">
                 {LIST_ERROR}
               </p>
-              <Button type="button" variant="outline" className="mt-4" onClick={reload}>
+              <Button type="button" variant="outline" className="mt-4 min-h-11 w-full sm:w-auto" onClick={reload}>
                 Try again
               </Button>
             </section>
           ) : current === null ? (
-            <section className="rounded-2xl bg-(--fl-card) p-6 sm:p-8 lg:col-span-2">
-              <p className="text-(--fl-muted)">No cases are awaiting review.</p>
+            <section className="rounded-2xl bg-card p-4 sm:p-6 md:p-8 lg:col-span-2">
+              <p className="text-muted-foreground">No cases are awaiting review.</p>
             </section>
           ) : (
             <>
-              <section className="flex flex-col gap-6 rounded-2xl bg-(--fl-card) p-6 sm:p-8">
+              <section className="flex flex-col gap-6 rounded-2xl bg-card p-4 sm:p-6 md:p-8">
                 <div className="flex flex-col gap-2">
-                  <h2 className="text-2xl font-bold sm:text-3xl">{caseTitle(current)}</h2>
-                  <p className="text-sm text-(--fl-muted)">Draft</p>
+                  <h2 className="text-balance text-2xl font-semibold sm:text-3xl">{caseTitle(current)}</h2>
+                  <p className="text-sm text-muted-foreground">Draft</p>
                 </div>
 
-                <div className="overflow-hidden rounded-xl">
+                <div className="overflow-hidden rounded-xl border border-border">
                   {current.photoUrl === null ? (
-                    <div className="flex aspect-[16/5] w-full items-center justify-center bg-(--fl-muted)/30">
-                      <span className="text-sm text-(--fl-muted)">Photo unavailable</span>
+                    <div className="flex aspect-[16/10] w-full items-center justify-center bg-muted sm:aspect-[16/5]">
+                      <span className="text-sm text-muted-foreground">Photo unavailable</span>
                     </div>
                   ) : (
                     <>
-                      {/* The signed URL is rendered straight from the queue response: never logged or persisted. */}
                       <img
                         src={current.photoUrl}
                         alt="Food photo submitted for screening"
-                        className="aspect-[16/5] w-full object-cover"
+                        className="aspect-[16/10] w-full object-cover sm:aspect-[16/5]"
                       />
                       <a
                         href={current.photoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block w-full bg-(--fl-ink) px-4 py-2 text-left text-sm text-white"
+                        className="block w-full bg-foreground px-4 py-3 text-left text-sm text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         Food photo · Open full image
                       </a>
@@ -316,15 +269,15 @@ export function ScreeningReviewsView() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <h3 className="text-lg font-bold">AI notes</h3>
-                  <div className="flex flex-col gap-1 text-sm text-(--fl-muted)">
+                  <h3 className="text-lg font-semibold text-foreground">AI notes</h3>
+                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                     <p>Verdict: REVIEW</p>
                     <p>Reason: {reasonText(current.notes, current.signs)}</p>
                     <p>Confidence: {confidenceLabel(current.confidence)}</p>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1 text-sm text-(--fl-muted)">
+                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                   {current.checklist === null ? (
                     <>
                       <p>Donor checklist: Not started</p>
@@ -336,28 +289,25 @@ export function ScreeningReviewsView() {
                 </div>
               </section>
 
-              <aside className="flex flex-col gap-6 rounded-2xl bg-(--fl-success) p-6 sm:p-8">
-                <h2 className="text-2xl font-bold text-(--fl-primary) sm:text-3xl">Review carefully</h2>
-                <div className="flex flex-col gap-5 text-(--fl-muted)">
+              <aside className="flex flex-col gap-6 rounded-2xl bg-success p-4 sm:p-6 md:p-8">
+                <h2 className="text-balance text-2xl font-semibold text-primary sm:text-3xl">Review carefully</h2>
+                <div className="flex flex-col gap-4 text-sm text-muted-foreground sm:text-body">
                   <p>AI does not certify food safety. Review the visible condition of the food.</p>
                   <p>Pass allows the donor to continue the checklist. Reject ends this draft with a reason.</p>
                   <p>The volunteer still performs a separate inspection at pickup.</p>
                 </div>
                 {decisionError === null ? null : (
-                  <p role="alert" className="rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)">
+                  <p role="alert" className="rounded-lg bg-error p-4 text-sm text-foreground">
                     {decisionError}
                   </p>
                 )}
                 {gone ? (
-                  <div
-                    role="alert"
-                    className="rounded-lg bg-(--fl-error) p-4 text-sm text-(--fl-ink)"
-                  >
+                  <div role="alert" className="rounded-lg bg-error p-4 text-sm text-foreground">
                     <p>This case was already decided or is no longer pending.</p>
                     <Button
                       type="button"
                       variant="outline"
-                      className="mt-4"
+                      className="mt-4 min-h-11 w-full sm:w-auto"
                       onClick={() => {
                         setDecisionError(null);
                         setPinned(cases[0] ?? null);
@@ -367,22 +317,11 @@ export function ScreeningReviewsView() {
                     </Button>
                   </div>
                 ) : null}
-                <div className="mt-auto flex flex-col gap-3 pt-8">
-                  <Button
-                    type="button"
-                    className="h-11 w-full sm:w-60"
-                    onClick={() => void submitDecision(current, passBody())}
-                    disabled={busy || gone}
-                  >
+                <div className="mt-auto flex flex-col gap-3 pt-4 sm:pt-8">
+                  <Button type="button" className="min-h-11 w-full sm:w-60" onClick={() => void submitDecision(current, passBody())} disabled={busy || gone}>
                     Pass photo
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full sm:w-60"
-                    onClick={openReject}
-                    disabled={busy || gone}
-                  >
+                  <Button type="button" variant="outline" className="min-h-11 w-full sm:w-60" onClick={openReject} disabled={busy || gone}>
                     Reject with reason
                   </Button>
                 </div>
@@ -391,9 +330,8 @@ export function ScreeningReviewsView() {
           )}
         </div>
 
-        <p className="rounded-xl bg-(--fl-warning) px-6 py-5 text-sm text-[#885B16]">
-          A timeout, malformed AI response, or low confidence also produces REVIEW rather than an
-          automatic pass.
+        <p className="rounded-xl bg-warning px-4 py-4 text-sm text-warning-foreground sm:px-6 sm:py-5">
+          A timeout, malformed AI response, or low confidence also produces REVIEW rather than an automatic pass.
         </p>
 
         <Dialog
@@ -407,12 +345,11 @@ export function ScreeningReviewsView() {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Reject photo</DialogTitle>
               <DialogDescription>
-                Give a reason for rejecting this photo. It is required and is saved with the
-                decision.
+                Give a reason for rejecting this photo. It is required and is saved with the decision.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2">
@@ -434,15 +371,10 @@ export function ScreeningReviewsView() {
               )}
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRejectOpen(false)}
-                disabled={busy}
-              >
+              <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => setRejectOpen(false)} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="button" onClick={confirmReject} disabled={busy}>
+              <Button type="button" className="min-h-11 w-full sm:w-auto" onClick={confirmReject} disabled={busy}>
                 Reject
               </Button>
             </DialogFooter>
@@ -452,5 +384,3 @@ export function ScreeningReviewsView() {
     </div>
   );
 }
-
-

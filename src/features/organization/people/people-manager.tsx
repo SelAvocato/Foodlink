@@ -243,18 +243,28 @@ export function PeopleManager() {
           value={search}
           onChange={handleSearch}
         />
-        <div className="flex flex-wrap gap-x-4">
-          <FilterSelect label="Status" value={status} onChange={changeStatus} options={[
-            { value: "ALL", label: "All" },
-            { value: "ACTIVE", label: "Active" },
-            { value: "SUSPENDED", label: "Suspended" },
-          ]} />
-          {role === "DONOR" ? (
-            <FilterSelect label="Type" value={type} onChange={changeType} options={[
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <FilterSelect
+            label="Status"
+            value={status}
+            onChange={changeStatus}
+            options={[
               { value: "ALL", label: "All" },
-              { value: "ESTABLISHMENT", label: "Establishment" },
-              { value: "INDIVIDUAL", label: "Individual" },
-            ]} />
+              { value: "ACTIVE", label: "Active" },
+              { value: "SUSPENDED", label: "Suspended" },
+            ]}
+          />
+          {role === "DONOR" ? (
+            <FilterSelect
+              label="Type"
+              value={type}
+              onChange={changeType}
+              options={[
+                { value: "ALL", label: "All" },
+                { value: "ESTABLISHMENT", label: "Establishment" },
+                { value: "INDIVIDUAL", label: "Individual" },
+              ]}
+            />
           ) : null}
         </div>
       </FilterBar>
@@ -266,62 +276,87 @@ export function PeopleManager() {
       ) : null}
 
       {!loading && people.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Person / establishment</TableHead>
-              <TableHead>Role / type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Recent activity</TableHead>
-              <TableHead>Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          <div className="space-y-3 md:hidden">
             {people.map((person) => (
-              <TableRow key={person.id}>
-                <TableCellStrong>{person.label}</TableCellStrong>
-                <TableCell>
+              <article key={person.id} className="rounded-xl border border-border bg-card p-4">
+                <p className="font-medium text-foreground">{person.label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {roleLabel(person.kind)} · {donorTypeLabel(person.donorType)}
-                </TableCell>
-                <TableCell>{statusLabel(person.status)}</TableCell>
-                <TableCell>{person.recentActivity}</TableCell>
-                <TableCell>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(person.id)}
-                    aria-label={`View ${person.label}`}
-                    aria-pressed={person.id === selectedId}
-                    className="inline-flex min-h-11 items-center gap-1 rounded-lg font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    View <ArrowRight className="size-4" aria-hidden />
-                  </button>
-                </TableCell>
-              </TableRow>
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">Status: {statusLabel(person.status)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{person.recentActivity}</p>
+                <Button
+                  type="button"
+                  variant={person.id === selectedId ? "default" : "outline"}
+                  className="mt-4 min-h-11 w-full"
+                  onClick={() => setSelectedId(person.id)}
+                  aria-pressed={person.id === selectedId}
+                >
+                  View <ArrowRight className="size-4" aria-hidden />
+                </Button>
+              </article>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Person / establishment</TableHead>
+                  <TableHead>Role / type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Recent activity</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {people.map((person) => (
+                  <TableRow key={person.id}>
+                    <TableCellStrong>{person.label}</TableCellStrong>
+                    <TableCell>
+                      {roleLabel(person.kind)} · {donorTypeLabel(person.donorType)}
+                    </TableCell>
+                    <TableCell>{statusLabel(person.status)}</TableCell>
+                    <TableCell>{person.recentActivity}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(person.id)}
+                        aria-label={`View ${person.label}`}
+                        aria-pressed={person.id === selectedId}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-lg font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        View <ArrowRight className="size-4" aria-hidden />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       ) : null}
 
       {!loading ? (
-        <nav aria-label="People pagination" className="flex flex-wrap items-center justify-between gap-2">
+        <nav aria-label="People pagination" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">{rangeSummary(total, currentPage, data?.pageSize ?? DEFAULT_PAGE_SIZE)}</p>
           <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              className="min-h-11 flex-1 sm:flex-none"
               disabled={currentPage <= 1}
               onClick={() => changePage(currentPage - 1)}
             >
               Previous
             </Button>
-            <span className="text-sm text-muted-foreground">
+            <span className="shrink-0 text-sm text-muted-foreground">
               Page {currentPage} of {pages}
             </span>
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              className="min-h-11 flex-1 sm:flex-none"
               disabled={currentPage >= pages}
               onClick={() => changePage(currentPage + 1)}
             >
@@ -332,8 +367,8 @@ export function PeopleManager() {
       ) : null}
 
       {selected ? (
-        <SectionCard title={selected.title} tone="success" className="p-8">
-          <p>{selected.email} · {selected.phone}</p>
+        <SectionCard title={selected.title} tone="success" className="p-4 sm:p-6 md:p-8">
+          <p className="break-words">{selected.email} · {selected.phone}</p>
           <p className="mt-1">Status: {statusLabel(selected.status)}</p>
           <p className="mt-1">{selected.stats.map((stat) => `${stat.value} ${stat.label.toLowerCase()}`).join(" · ")}</p>
           <p className="mt-1">
@@ -344,7 +379,7 @@ export function PeopleManager() {
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11"
+                className="min-h-11 w-full sm:w-auto"
                 onClick={() => {
                   setDialogError(undefined);
                   setDialog("suspend");
@@ -356,7 +391,7 @@ export function PeopleManager() {
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11"
+                className="min-h-11 w-full sm:w-auto"
                 onClick={() => {
                   setDialogError(undefined);
                   setDialog("reactivate");

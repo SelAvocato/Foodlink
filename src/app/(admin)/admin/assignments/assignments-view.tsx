@@ -55,7 +55,6 @@ type DetailRead =
   | { kind: "not-found" }
   | { kind: "error" };
 
-/** The accepted list, or null on any failure (network, timeout, status, wrong shape). */
 async function loadAcceptedList(): Promise<AcceptedRowView[] | null> {
   try {
     const response = await fetch(`/api/admin/donations/accepted?limit=${ACCEPTED_LIMIT}`, {
@@ -69,7 +68,6 @@ async function loadAcceptedList(): Promise<AcceptedRowView[] | null> {
   }
 }
 
-/** The header card, or which failure stopped the read. Only a 404 is "not found". */
 async function loadDetail(donationId: string): Promise<DetailRead> {
   try {
     const response = await fetch(`/api/admin/donations/${encodeURIComponent(donationId)}`, {
@@ -87,7 +85,6 @@ async function loadDetail(donationId: string): Promise<DetailRead> {
   }
 }
 
-/** The active volunteers, or null on any failure. */
 async function loadVolunteers(): Promise<VolunteerView[] | null> {
   try {
     const response = await fetch(`/api/admin/volunteers?limit=${VOLUNTEER_LIMIT}`, {
@@ -236,7 +233,6 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
               : undefined,
       });
     } catch {
-      // No HTTP status: network failure or timeout. Same wording as the 400 family.
       const failure = assignFailure(0);
       setBanner({ tone: failure.tone, title: failure.title, message: failure.message });
     } finally {
@@ -246,11 +242,11 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
 
   if (route.kind === "not-found" || (route.kind === "detail" && detailState.status === "not-found")) {
     return (
-      <div className="mx-auto w-full max-w-[1180px] px-6 py-8">
+      <div className="mx-auto w-full max-w-[1180px] space-y-4">
         <button
           type="button"
           onClick={() => router.push("/admin/assignments")}
-          className="mb-4 text-sm font-medium text-[#176448] underline-offset-4 hover:underline"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Back to the list
         </button>
@@ -263,12 +259,14 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
 
   if (route.kind === "list") {
     return (
-      <div className="mx-auto w-full max-w-[1180px] px-6 py-8">
-        <h1 className="text-3xl font-semibold text-[#17261F]">Assignments</h1>
-        <p className="mt-3 text-sm text-[#63746D]">
-          Accepted donations that still need a volunteer. Soonest pickup end first.
-        </p>
-        <div className="mt-8 overflow-x-auto rounded-2xl bg-white p-2">
+      <div className="mx-auto w-full max-w-[1180px] space-y-6">
+        <div>
+          <h1 className="text-balance text-3xl font-semibold text-foreground">Assignments</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Accepted donations that still need a volunteer. Soonest pickup end first.
+          </p>
+        </div>
+        <div className="rounded-2xl bg-card p-4 sm:p-6">
           {listState.status === "loading" ? (
             <DataTableSkeleton rows={5} columns={5} label="Loading assignments" />
           ) : listState.status === "error" ? (
@@ -293,45 +291,63 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
               }
             />
           ) : (
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead>
-                <tr className="text-[#63746D]">
-                  <th className="px-4 py-3 font-medium">Donation</th>
-                  <th className="px-4 py-3 font-medium">Donor</th>
-                  <th className="px-4 py-3 font-medium">Portions</th>
-                  <th className="px-4 py-3 font-medium">Pickup ends</th>
-                  <th className="px-4 py-3">
-                    <span className="sr-only">Action</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              <div className="space-y-3 md:hidden">
                 {listState.rows.map((row) => (
-                  <tr key={row.donationId} className="border-t border-[#F5F7F5] text-[#17261F]">
-                    <td className="px-4 py-4">
-                      <p className="font-semibold">{row.foodName}</p>
-                      <p className="text-[#63746D]">{row.code}</p>
-                    </td>
-                    <td className="px-4 py-4">{row.donorName}</td>
-                    <td className="px-4 py-4">{row.portions}</td>
-                    <td className="px-4 py-4">{row.pickupEnd}</td>
-                    <td className="px-4 py-4 text-right">
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/admin/assignments?donation=${encodeURIComponent(row.donationId)}`,
-                          )
-                        }
-                        className="h-9 min-w-[96px] rounded-sm bg-[#176448] text-sm font-medium text-white hover:bg-[#176448]/90"
-                      >
-                        Assign
-                      </Button>
-                    </td>
-                  </tr>
+                  <article key={row.donationId} className="rounded-xl border border-border p-4">
+                    <p className="font-semibold text-foreground">{row.foodName}</p>
+                    <p className="text-sm text-muted-foreground">{row.code}</p>
+                    <dl className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      <div className="flex gap-2"><dt className="min-w-24 font-medium text-foreground">Donor</dt><dd>{row.donorName}</dd></div>
+                      <div className="flex gap-2"><dt className="min-w-24 font-medium text-foreground">Portions</dt><dd>{row.portions}</dd></div>
+                      <div className="flex gap-2"><dt className="min-w-24 font-medium text-foreground">Pickup ends</dt><dd>{row.pickupEnd}</dd></div>
+                    </dl>
+                    <Button
+                      type="button"
+                      onClick={() => router.push(`/admin/assignments?donation=${encodeURIComponent(row.donationId)}`)}
+                      className="mt-4 min-h-11 w-full"
+                    >
+                      Assign
+                    </Button>
+                  </article>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Donation</th>
+                      <th className="px-4 py-3 font-medium">Donor</th>
+                      <th className="px-4 py-3 font-medium">Portions</th>
+                      <th className="px-4 py-3 font-medium">Pickup ends</th>
+                      <th className="px-4 py-3"><span className="sr-only">Action</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listState.rows.map((row) => (
+                      <tr key={row.donationId} className="border-t border-border text-foreground">
+                        <td className="px-4 py-4">
+                          <p className="font-semibold">{row.foodName}</p>
+                          <p className="text-muted-foreground">{row.code}</p>
+                        </td>
+                        <td className="px-4 py-4 text-muted-foreground">{row.donorName}</td>
+                        <td className="px-4 py-4 text-muted-foreground">{row.portions}</td>
+                        <td className="px-4 py-4 text-muted-foreground">{row.pickupEnd}</td>
+                        <td className="px-4 py-4 text-right">
+                          <Button
+                            type="button"
+                            onClick={() => router.push(`/admin/assignments?donation=${encodeURIComponent(row.donationId)}`)}
+                            className="min-h-11"
+                          >
+                            Assign
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -339,130 +355,93 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-6 py-8">
+    <div className="mx-auto w-full max-w-[1180px] space-y-6">
       <button
         type="button"
         onClick={() => router.push("/admin/assignments")}
-        className="mb-4 text-sm font-medium text-[#176448] underline-offset-4 hover:underline"
+        className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         Back to the list
       </button>
-      <h1 className="text-3xl font-semibold text-[#17261F]">Assign a volunteer</h1>
-      <p className="mt-3 text-sm text-[#63746D]">
-        Accepted donation / {detailCode}
-        {ready !== null ? <> &middot; {ready.foodName} &middot; {ready.portions} portions</> : null}
-      </p>
+      <div>
+        <h1 className="text-balance text-3xl font-semibold text-foreground">Assign a volunteer</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Accepted donation / {detailCode}
+          {ready !== null ? <> · {ready.foodName} · {ready.portions} portions</> : null}
+        </p>
+      </div>
 
       {banner !== null ? (
-        <div className="mt-8">
-          <FeedbackBanner tone={banner.tone} title={banner.title} action={banner.action}>
-            {banner.message}
-          </FeedbackBanner>
-        </div>
+        <FeedbackBanner tone={banner.tone} title={banner.title} action={banner.action}>
+          {banner.message}
+        </FeedbackBanner>
       ) : null}
 
       {detailState.status === "loading" ? (
-        <div
-          role="status"
-          aria-busy="true"
-          className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,9fr)]"
-        >
+        <div role="status" aria-busy="true" className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,9fr)]">
           <span className="sr-only">Loading donation...</span>
-          <div
-            aria-hidden
-            className="flex min-h-[600px] flex-col gap-6 rounded-2xl bg-white p-6"
-          >
+          <div aria-hidden className="flex flex-col gap-6 rounded-2xl bg-card p-4 sm:p-6">
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="h-5 w-1/2" />
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-5 w-1/3" />
-            <Skeleton className="mt-auto h-4 w-full" />
           </div>
-          <div
-            aria-hidden
-            className="flex min-h-[600px] flex-col gap-6 rounded-2xl bg-white p-6"
-          >
+          <div aria-hidden className="flex flex-col gap-6 rounded-2xl bg-card p-4 sm:p-6">
             <Skeleton className="h-8 w-1/2" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
-            <Skeleton className="mt-auto h-11 w-[210px]" />
           </div>
         </div>
       ) : detailState.status === "error" ? (
-        <div className="mt-8">
-          <FeedbackBanner
-            tone="error"
-            title="Could not load this donation"
-            action={{ label: "Try again", onClick: reloadDetail }}
-          >
-            The donation details could not be loaded. Check your connection and try again.
-          </FeedbackBanner>
-        </div>
+        <FeedbackBanner tone="error" title="Could not load this donation" action={{ label: "Try again", onClick: reloadDetail }}>
+          The donation details could not be loaded. Check your connection and try again.
+        </FeedbackBanner>
       ) : ready !== null ? (
         <>
           {ready.hasPickup ? (
-            <div className="mt-8 min-h-[80px] rounded-xl bg-[#FFF4DE] px-5 py-4 text-sm text-[#885B16]">
+            <div className="rounded-xl bg-warning px-4 py-4 text-sm text-warning-foreground sm:px-5">
               Pickup ends {ready.pickupEnd}. Assign an ACTIVE volunteer before the pickup deadline.
             </div>
           ) : null}
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,9fr)]">
-            <section className="flex min-h-[600px] flex-col rounded-2xl bg-white p-6">
-              <h2 className="text-2xl font-semibold text-[#17261F]">{ready.foodName}</h2>
-              <div className="mt-8 space-y-8 text-base text-[#63746D]">
-                <div>
-                  <p>{ready.donorName}</p>
-                  <p>{ready.portions} portions</p>
-                </div>
-                <div>
-                  <p>{ready.address}</p>
-                  <p>{ready.window}</p>
-                </div>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,9fr)]">
+            <section className="flex flex-col rounded-2xl bg-card p-4 sm:p-6">
+              <h2 className="text-xl font-semibold text-foreground sm:text-2xl">{ready.foodName}</h2>
+              <div className="mt-6 space-y-6 text-sm text-muted-foreground sm:text-body">
+                <div><p>{ready.donorName}</p><p>{ready.portions} portions</p></div>
+                <div><p className="break-words">{ready.address}</p><p>{ready.window}</p></div>
                 <p>Status: {displayStatus}</p>
               </div>
-              <p className="mt-auto pt-8 text-sm text-[#63746D]">
+              <p className="mt-8 text-sm text-muted-foreground">
                 Assigning moves the donation to ASSIGNED. The volunteer is not notified yet.
               </p>
             </section>
 
-            <section className="flex min-h-[600px] flex-col rounded-2xl bg-white p-6">
+            <section className="flex flex-col rounded-2xl bg-card p-4 sm:p-6">
               {!awaiting ? (
-                <FeedbackBanner
-                  tone="neutral"
-                  title="Not waiting for a volunteer"
-                  action={{ label: "Back to the list", href: "/admin/assignments" }}
-                >
+                <FeedbackBanner tone="neutral" title="Not waiting for a volunteer" action={{ label: "Back to the list", href: "/admin/assignments" }}>
                   This donation is not waiting for a volunteer. Its current status is {displayStatus}.
                 </FeedbackBanner>
               ) : (
                 <>
-                  <h2 className="text-2xl font-semibold text-[#17261F]">
-                    Choose an active volunteer
-                  </h2>
+                  <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Choose an active volunteer</h2>
                   {volunteersState.status === "loading" ? (
-                    <div role="status" aria-busy="true" className="mt-8 flex flex-col gap-5">
+                    <div role="status" aria-busy="true" className="mt-6 flex flex-col gap-4">
                       <span className="sr-only">Loading volunteers...</span>
                       <Skeleton className="h-12 w-full" />
                       <Skeleton className="h-24 w-full" />
                       <Skeleton className="h-24 w-full" />
                     </div>
                   ) : volunteersState.status === "error" ? (
-                    <div className="mt-8">
-                      <FeedbackBanner
-                        tone="error"
-                        title="Could not load volunteers"
-                        action={{ label: "Try again", onClick: reloadVolunteers }}
-                      >
+                    <div className="mt-6">
+                      <FeedbackBanner tone="error" title="Could not load volunteers" action={{ label: "Try again", onClick: reloadVolunteers }}>
                         The volunteer list could not be loaded. Check your connection and try again.
                       </FeedbackBanner>
                     </div>
                   ) : volunteerRows.length === 0 ? (
-                    <div className="mt-8">
-                      <EmptyState
-                        title="No active volunteer is available yet"
-                        description="Active volunteers will appear here."
-                      />
+                    <div className="mt-6">
+                      <EmptyState title="No active volunteer is available yet" description="Active volunteers will appear here." />
                     </div>
                   ) : (
                     <>
@@ -475,31 +454,22 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
                           setSearch(next);
                           if (
                             selectedId !== null &&
-                            !filterVolunteers(volunteerRows, next).some(
-                              (volunteer) => volunteer.volunteerId === selectedId,
-                            )
+                            !filterVolunteers(volunteerRows, next).some((volunteer) => volunteer.volunteerId === selectedId)
                           ) {
                             setSelectedId(null);
                           }
                         }}
                         placeholder="Search volunteers by name"
                         aria-label="Search volunteers by name"
-                        className="mt-8 h-12 w-full rounded-lg bg-[#F5F7F5] px-4 text-sm text-[#17261F] placeholder:text-[#63746D] outline-none focus-visible:ring-2 focus-visible:ring-[#176448]"
+                        className="mt-6 min-h-11 w-full rounded-lg bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
-                      <div
-                        role="radiogroup"
-                        aria-label="Active volunteers"
-                        className="mt-6 flex flex-col gap-5"
-                      >
+                      <div role="radiogroup" aria-label="Active volunteers" className="mt-6 flex flex-col gap-4">
                         {visible.map((volunteer) => {
                           const selected = volunteer.volunteerId === selectedId;
                           return (
                             <label
                               key={volunteer.volunteerId}
-                              className={
-                                "block cursor-pointer rounded-lg p-4 " +
-                                (selected ? "bg-[#EAF4EE]" : "bg-[#F5F7F5]")
-                              }
+                              className={`block cursor-pointer rounded-lg border p-4 ${selected ? "border-primary bg-success" : "border-transparent bg-muted"}`}
                             >
                               <span className="flex items-center gap-3">
                                 <input
@@ -509,27 +479,20 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
                                   checked={selected}
                                   disabled={busy || assigned}
                                   onChange={() => setSelectedId(volunteer.volunteerId)}
-                                  className="size-4 accent-[#176448]"
+                                  className="size-4 accent-primary"
                                 />
-                                <span
-                                  className={
-                                    "text-base font-semibold " +
-                                    (selected ? "text-[#176448]" : "text-[#17261F]")
-                                  }
-                                >
+                                <span className={`text-base font-semibold ${selected ? "text-primary" : "text-foreground"}`}>
                                   {volunteer.fullName}
                                 </span>
                               </span>
-                              <span className="mt-3 block text-sm text-[#63746D]">
+                              <span className="mt-3 block text-sm text-muted-foreground">
                                 {availabilityLine(volunteer.availability)}
                               </span>
                             </label>
                           );
                         })}
                         {visible.length === 0 ? (
-                          <p className="text-sm text-[#63746D]">
-                            No active volunteer matches that name.
-                          </p>
+                          <p className="text-sm text-muted-foreground">No active volunteer matches that name.</p>
                         ) : null}
                       </div>
                     </>
@@ -537,17 +500,12 @@ export function AssignmentsView({ route }: { route: AssignmentsRoute }) {
                 </>
               )}
               {awaiting ? (
-                <div className="mt-auto pt-16">
+                <div className="mt-8 pt-4 sm:pt-8">
                   <Button
                     type="button"
-                    disabled={
-                      selectedId === null ||
-                      busy ||
-                      assigned ||
-                      volunteersState.status !== "ready"
-                    }
+                    disabled={selectedId === null || busy || assigned || volunteersState.status !== "ready"}
                     onClick={() => void assign()}
-                    className="h-11 min-w-[210px] rounded-sm bg-[#176448] text-sm font-medium text-white hover:bg-[#176448]/90"
+                    className="min-h-11 w-full sm:w-auto sm:min-w-[210px]"
                   >
                     Assign volunteer
                   </Button>
