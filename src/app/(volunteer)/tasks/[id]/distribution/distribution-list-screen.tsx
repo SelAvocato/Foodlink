@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FeedbackBanner } from "@/components/shared/feedback-banner";
 import { Skeleton } from "@/components/shared/skeleton";
 import Link from "next/link";
@@ -81,6 +81,7 @@ function DistributionSkeleton() {
 
 export function DistributionListScreen({ donationId }: { donationId: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const base = `/api/donations/${encodeURIComponent(donationId)}/distribution-entries`;
   const [state, setState] = useState<TaskState>({ kind: "loading" });
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
@@ -103,9 +104,13 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
     });
   }, [base, donationId, router]);
 
+  // Always re-read on mount and whenever this route becomes active again, so
+  // totals saved on p52 are shown instead of a tree restored from the router
+  // cache. loadEntries() uses cache: "no-store" and the GET route answers
+  // Cache-Control: no-store, so no layer can serve a stale summary.
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, pathname]);
 
   const handleRetry = useCallback(() => {
     load();

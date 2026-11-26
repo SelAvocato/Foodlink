@@ -11,7 +11,6 @@ import {
 import { useRouter } from "next/navigation";
 import type { GroupServed, UnusableReason } from "@/contracts/volunteer-distribution";
 import { DistributionEntryView } from "./distribution-entry-view";
-import { validateImage } from "@/contracts/image";
 import {
   createDistributionEntryInputSchema,
   overLimitMessage,
@@ -116,7 +115,6 @@ export function DistributionEntryScreen({
   const [banner, setBanner] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summary, setSummary] = useState<DistributionEntriesResponse["summary"] | null>(null);
-  const [selectedPhoto, setSelectedPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [editingEntry, setEditingEntry] = useState<{
     peopleServed: number;
     portionsDistributed: number;
@@ -125,15 +123,17 @@ export function DistributionEntryScreen({
   const loadRun = useRef(0);
   const submitRun = useRef(0);
 
-  const basePath = `/api/donations/${encodeURIComponent(donationId)}/distribution-entries`;
+  // Reads are served by the public GET route; writes by the volunteer-only route.
+  const readUrl = `/api/donations/${encodeURIComponent(donationId)}/distribution-entries`;
+  const writeUrl = `/api/volunteer/donations/${encodeURIComponent(donationId)}/distribution-entries`;
   const requestPath =
-    mode === "create" ? basePath : `${basePath}/${encodeURIComponent(entryId ?? "")}`;
+    mode === "create" ? writeUrl : `${writeUrl}/${encodeURIComponent(entryId ?? "")}`;
 
   useEffect(() => {
     loadRun.current += 1;
     const mine = loadRun.current;
 
-    void fetch(basePath, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+    void fetch(readUrl, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
       .then(async (response) => {
         if (loadRun.current !== mine) return;
         if (!response.ok) {
@@ -177,7 +177,7 @@ export function DistributionEntryScreen({
         if (loadRun.current !== mine) return;
         setBanner("Couldn't save changes. Your entries are preserved. Try again.");
       });
-  }, [basePath, donationId, entryId, mode, router]);
+  }, [readUrl, donationId, entryId, mode, router]);
 
   const setField = useCallback(
     (key: keyof FormState, value: string) => {
@@ -222,30 +222,6 @@ export function DistributionEntryScreen({
     (value: string) => setField("notes", value),
     [setField],
   );
-  const onPhotoChange = useCallback(
-    (file: File | null) => {
-      if (!file) {
-        setSelectedPhoto(null);
-        return;
-      }
-      // Read the file as ArrayBuffer first, then validate and create preview
-      file.arrayBuffer().then((bytes) => {
-        const check = validateImage(new Uint8Array(bytes));
-        if (!check.ok) {
-          setSelectedPhoto(null);
-          return;
-        }
-        // Create preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const preview = e.target?.result as string;
-          setSelectedPhoto({ file, preview });
-        };
-        reader.readAsDataURL(file);
-      });
-    },
-    [],
-  );
 
   const validateAndSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -289,6 +265,10 @@ export function DistributionEntryScreen({
 
         if (response.status === 200 || response.status === 201) {
           void router.replace(`/tasks/${encodeURIComponent(donationId)}/distribution`);
+          // p51 is a Server Component wrapper, so drop the cached RSC payload
+          // for it: the list screen then mounts with a fresh tree and re-reads
+          // the entries instead of showing the totals from before this save.
+          router.refresh();
           return;
         }
 
@@ -338,11 +318,11 @@ export function DistributionEntryScreen({
     },
     [
       requestPath,
-form,
-  mode,
-  editingEntry,
-  summary,
-  router,
+      form,
+      mode,
+      editingEntry,
+      summary,
+      router,
       donationId,
     ],
   );
@@ -374,8 +354,6 @@ form,
       onUnusableChange={onUnusableChange}
       onReasonChange={onReasonChange}
       onNotesChange={onNotesChange}
-      onPhotoChange={onPhotoChange}
-      selectedPhoto={selectedPhoto}
     />
   );
 }
