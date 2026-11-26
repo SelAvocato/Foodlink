@@ -79,35 +79,6 @@ function DistributionSkeleton() {
   );
 }
 
-function PrimaryButton({
-  children,
-  href,
-  disabled,
-  className,
-}: {
-  children: React.ReactNode;
-  href: string;
-  disabled: boolean;
-  className?: string;
-}) {
-  if (disabled) {
-    return (
-      <span
-        className={className}
-        aria-disabled="true"
-        data-disabled
-      >
-        {children}
-      </span>
-    );
-  }
-  return (
-    <Link href={href} className={className}>
-      {children}
-    </Link>
-  );
-}
-
 export function DistributionListScreen({ donationId }: { donationId: string }) {
   const router = useRouter();
   const base = `/api/donations/${encodeURIComponent(donationId)}/distribution-entries`;
@@ -192,7 +163,6 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
   const entries = current.entries;
   const isClosed = summary.status === "CLOSED";
   const remainingNegative = summary.remainingQuantity < 0;
-  const canAdd = summary.canAddEntry && !remainingNegative && !isClosed;
   const canComplete = summary.canComplete && !remainingNegative && !isClosed;
 
   return (
@@ -212,7 +182,7 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
           {summary.distributedQuantity + summary.unusableQuantity} of{" "}
           {summary.totalQuantity} portions
         </p>
-        <p className="mt-1 text-sm text-[#176448]/20">
+        <p className="mt-1 text-sm text-white/90">
           accounted for · {summary.remainingQuantity} remaining
         </p>
         <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/20">
@@ -255,7 +225,7 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
                 <div className="mt-4 flex gap-3">
                   <Link
                     href={`/tasks/${donationId}/distribution/${entry.id}/edit`}
-                    className="flex-1 min-h-11 items-center justify-center rounded-sm border border-[#DCE4DE] bg-white text-[#176448] text-sm font-semibold enabled:hover:bg-[#EAF4EE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex-1 font-medium min-h-[44px] inline-flex items-center text-[#1B6B46] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Edit entry
                   </Link>
@@ -263,7 +233,7 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
                     type="button"
                     onClick={() => handleDelete(entry.id)}
                     disabled={deleting !== null}
-                    className="flex-1 min-h-11 items-center justify-center rounded-sm border border-[#DCE4DE] bg-white text-[#176448] text-sm font-semibold enabled:hover:bg-[#EAF4EE] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex-1 font-medium min-h-[44px] inline-flex items-center text-[#1B6B46] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Delete
                   </button>
@@ -276,17 +246,14 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
 
       {/* Add entry button */}
       {!isClosed && (
-        <PrimaryButton
-          href={`/tasks/${donationId}/distribution/new`}
-          disabled={!canAdd}
-          className={`min-h-11 h-[52px] w-full items-center justify-center rounded-xl text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-            canAdd
-              ? "bg-[#176448] text-white enabled:hover:bg-[#12513a]"
-              : "border border-[#DCE4DE] bg-[#F2F2F2] text-[#9CA3AF]"
-          }`}
-        >
-          + Add distribution entry
-        </PrimaryButton>
+        <div className="mt-6">
+          <Link
+            href={`/tasks/${donationId}/distribution/new`}
+            className="flex w-full min-h-[48px] items-center justify-center rounded-xl bg-[#1B6B46] px-4 py-3 text-base font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            + Add distribution entry
+          </Link>
+        </div>
       )}
 
       {/* Note */}
@@ -299,17 +266,18 @@ export function DistributionListScreen({ donationId }: { donationId: string }) {
       {isClosed ? (
         <p className="text-sm font-semibold text-muted-foreground">Completed</p>
       ) : (
-        <PrimaryButton
-          href={`/tasks/${donationId}/distribution/complete`}
-          disabled={!canComplete}
-          className={`min-h-11 h-[52px] w-full items-center justify-center rounded-xl text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-            canComplete
-              ? "bg-[#176448] text-white enabled:hover:bg-[#12513a]"
-              : "border border-[#DCE4DE] bg-[#F2F2F2] text-[#9CA3AF]"
-          }`}
-        >
-          Complete donation
-        </PrimaryButton>
+        <div className="mt-6">
+          <Link
+            href={`/tasks/${donationId}/distribution/complete`}
+            className={`flex w-full min-h-[48px] items-center justify-center rounded-xl px-4 py-3 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              canComplete
+                ? "bg-[#1B6B46] text-white"
+                : "bg-[#E5EAE7] text-[#7D8C84] cursor-not-allowed"
+            }`}
+          >
+            Complete donation
+          </Link>
+        </div>
       )}
 
       {!canComplete && !isClosed && !remainingNegative && (
