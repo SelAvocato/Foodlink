@@ -244,7 +244,7 @@ export function RegistrationsView() {
         : null;
 
   return (
-    <main className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
+    <div className="min-h-screen bg-(--fl-canvas) text-(--fl-ink)">
       <div className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
         <p className="text-xs font-semibold tracking-wide text-(--fl-primary)">
           Workspace / Registration approvals
@@ -476,6 +476,8 @@ export function RegistrationsView() {
           </DialogContent>
         </Dialog>
       </div>
-    </main>
+    </div>
   );
 }
+
+

@@ -133,14 +133,25 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
   }
 
   return (
-    <form className="space-y-6" noValidate onSubmit={onSubmit}>
+    <form className="space-y-4" noValidate onSubmit={onSubmit}>
       <FormField label="Email" error={fieldErrors.email}>
         {(p) => (
           <Input {...p} name="email" type="email" autoComplete="email" inputMode="email" placeholder="name@example.com" className="min-h-11" />
         )}
       </FormField>
 
-      <FormField label="Password" error={fieldErrors.password}>
+      <FormField
+        label="Password"
+        error={fieldErrors.password}
+        action={
+          <Link
+            href="/forgot"
+            className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Forgot password?
+          </Link>
+        }
+      >
         {(p) => (
           <div className="relative">
             <Input
@@ -164,15 +175,6 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
         )}
       </FormField>
 
-      <div className="flex justify-end">
-        <Link
-          href="/forgot"
-          className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Forgot password?
-        </Link>
-      </div>
-
       {lockedOut ? (
         <FeedbackBanner tone="warning" title="Account temporarily locked">
           Too many failed attempts. Try again in{" "}
@@ -184,16 +186,16 @@ export function LoginForm({ footer }: { footer?: React.ReactNode }) {
       ) : lockoutExpired ? (
         <FeedbackBanner tone="success" title="You can try again now." />
       ) : formError ? (
-        <div role="alert" className="rounded-lg bg-error p-4 text-sm text-error-foreground">
+        <div role="alert" className="rounded-lg bg-error p-3 text-sm text-error-foreground">
           {formError}
         </div>
       ) : null}
 
-      <Button type="submit" className="min-h-11 min-w-[140px]" disabled={submitting || lockedOut} aria-busy={submitting}>
-        {submitting ? "Signing in…" : lockedOut ? "Locked" : "Login"}
+      <Button type="submit" className="min-h-11 w-full sm:w-auto sm:min-w-[140px]" disabled={submitting || lockedOut} aria-busy={submitting}>
+        {submitting ? "Signing in." : lockedOut ? "Locked" : "Login"}
       </Button>
 
-      {footer ? <div>{footer}</div> : null}
+      {footer ? <div className="pt-1">{footer}</div> : null}
     </form>
   );
 }
